@@ -1,6 +1,8 @@
-package io.vertx.blueprint.todolist;
+package io.vertx.blueprint.todolist.verticles;
 
 
+import io.vertx.blueprint.todolist.Constants;
+import io.vertx.blueprint.todolist.Utils;
 import io.vertx.blueprint.todolist.entity.Todo;
 
 import io.vertx.core.AbstractVerticle;
@@ -19,9 +21,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Vert.x todo Verticle
+ * Vert.x Blueprint Application - Todo Backend
+ * Single Application Verticle (Redis)
+ *
+ * @author Eric Zhao
  */
-public class TodoVerticle extends AbstractVerticle {
+public class SingleApplicationVerticle extends AbstractVerticle {
 
   private static String HOST = "127.0.0.1";
   private static int PORT = 8082;
@@ -44,10 +49,10 @@ public class TodoVerticle extends AbstractVerticle {
 
     redis = RedisClient.create(vertx, config);
 
-    redis.hset(Constants.REDIS_TODO_KEY, "98", Json.encodePrettily(
-      new Todo(98, "Something to do...", false, 1, "todo/ex")), res -> {
+    redis.hset(Constants.REDIS_TODO_KEY, "24", Json.encodePrettily(
+      new Todo(24, "Something to do...", false, 1, "todo/ex")), res -> {
       if (res.failed()) {
-        System.err.println("[Error]Redis service is not running!");
+        System.err.println("[Error] Redis service is not running!");
         res.cause().printStackTrace();
       }
     });
@@ -97,7 +102,7 @@ public class TodoVerticle extends AbstractVerticle {
   }
 
   private void handleCreateTodo(RoutingContext context) {
-    final Todo todo = wrapObject(getTodoFromJson
+    final Todo todo = wrapObject(Utils.getTodoFromJson
       (context.getBodyAsString()), context);
     final String encoded = Json.encodePrettily(todo);
     redis.hset(Constants.REDIS_TODO_KEY, String.valueOf(todo.getId()),
@@ -137,7 +142,7 @@ public class TodoVerticle extends AbstractVerticle {
     redis.hvals(Constants.REDIS_TODO_KEY, res -> {
       if (res.succeeded()) {
         String encoded = Json.encodePrettily(res.result().stream()
-          .map(x -> getTodoFromJson((String) x))
+          .map(x -> Utils.getTodoFromJson((String) x))
           .collect(Collectors.toList()));
         context.response()
           .putHeader("content-type", "application/json; charset=utf-8")
@@ -149,9 +154,9 @@ public class TodoVerticle extends AbstractVerticle {
 
   private void handleUpdateTodo(RoutingContext context) {
     String todoID = context.request().getParam("todoId");
-    final Todo newTodo = getTodoFromJson(context.getBodyAsString());
+    final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString());
     // handle error
-    if (newTodo == null) {
+    if (todoID == null || newTodo == null) {
       sendError(400, context.response());
       return;
     }
@@ -162,7 +167,7 @@ public class TodoVerticle extends AbstractVerticle {
         if (result == null)
           sendError(404, context.response());
         else {
-          Todo oldTodo = getTodoFromJson(result);
+          Todo oldTodo = Utils.getTodoFromJson(result);
           String response = Json.encodePrettily(oldTodo.merge(newTodo));
           redis.hset(Constants.REDIS_TODO_KEY, todoID, response, res -> {
             if (res.succeeded()) {
@@ -198,16 +203,6 @@ public class TodoVerticle extends AbstractVerticle {
 
   private void sendError(int statusCode, HttpServerResponse response) {
     response.setStatusCode(statusCode).end();
-  }
-
-  /**
-   * Decode Todo entity from JSON str
-   *
-   * @param jsonStr JSON str
-   * @return Todo entity
-   */
-  private Todo getTodoFromJson(String jsonStr) {
-    return Json.decodeValue(jsonStr, Todo.class);
   }
 
   /**

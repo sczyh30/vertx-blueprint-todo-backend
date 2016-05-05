@@ -1,34 +1,32 @@
 apply plugin: 'java'
 
 jar {
-    // by default fat jar
-    baseName = 'vertx-blueprint-todo-backend-fat'
-    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
-    manifest {
-        attributes 'Main-Class': 'io.vertx.blueprint.todolist.Application'
-    }
+  // by default fat jar
+  baseName = 'vertx-blueprint-todo-backend-fat'
+  from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+  manifest {
+    attributes 'Main-Class': 'io.vertx.blueprint.todolist.Application'
+  }
 }
 
+targetCompatibility = 1.8
 sourceCompatibility = 1.8
 
 repositories {
-    mavenCentral()
-    mavenLocal()
-    maven {
-        url 'http://maven.oschina.net/content/groups/public/'
-    }
+  mavenCentral()
+  mavenLocal()
 }
 
 dependencies {
 
-    compile "io.vertx:vertx-core:3.2.1"
-    compile 'io.vertx:vertx-web:3.2.1'
-    compile 'io.vertx:vertx-redis-client:3.2.1'
-    compile 'io.vertx:vertx-unit:3.2.1'
+  compile "io.vertx:vertx-core:3.3.0-SNAPSHOT"
+  compile 'io.vertx:vertx-web:3.3.0-SNAPSHOT'
+  compile 'io.vertx:vertx-redis-client:3.2.1'
+  compile 'io.vertx:vertx-unit:3.2.1'
 
-    testCompile group: 'junit', name: 'junit', version: '4.12'
+  testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '2.9'
+  gradleVersion = '2.9'
 }

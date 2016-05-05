@@ -1,18 +1,22 @@
 package io.vertx.blueprint.todolist;
 
+import io.vertx.blueprint.todolist.verticles.SingleApplicationVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Verticle;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 
 /**
- * The todo backend application
+ * Vert.x Blueprint Application - Todo Backend
+ * Launcher Class
+ *
+ * @author Eric Zhao
  */
 public class Application {
 
   public static void main(String[] args) {
     Vertx vertx = Vertx.vertx();
-    Verticle todoVerticle = new TodoVerticle();
+    Verticle todoVerticle = new SingleApplicationVerticle();
 
     final int port = Integer.getInteger("http.port", 8082);
     DeploymentOptions options = new DeploymentOptions()

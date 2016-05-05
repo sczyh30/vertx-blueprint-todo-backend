@@ -1,9 +1,12 @@
 package io.vertx.blueprint.todolist;
 
 /**
+ * Vert.x Blueprint Application - Todo Backend
  * Constants class
  */
 public final class Constants {
+
+  private Constants() {}
 
   /** API Route */
   public static final String API_GET = "/todos/:todoId";
