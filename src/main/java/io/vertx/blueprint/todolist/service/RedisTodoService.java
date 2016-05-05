@@ -29,6 +29,10 @@ public class RedisTodoService implements TodoService {
     this(Vertx.vertx());
   }
 
+  public RedisTodoService(RedisOptions config) {
+    this(Vertx.vertx(), config);
+  }
+
   public RedisTodoService(Vertx vertx) {
     this(vertx, new RedisOptions());
   }
@@ -37,6 +41,12 @@ public class RedisTodoService implements TodoService {
     this.vertx = vertx;
     this.config = config;
     this.redis = RedisClient.create(vertx, config);
+  }
+
+  @Override
+  public Future<Boolean> initData() {
+    return insert(new Todo(Math.abs(new java.util.Random().nextInt()),
+      "Something to do...", false, 1, "todo/ex"));
   }
 
   @Override

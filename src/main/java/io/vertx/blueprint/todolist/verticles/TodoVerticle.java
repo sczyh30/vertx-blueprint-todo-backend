@@ -40,10 +40,9 @@ public class TodoVerticle extends AbstractVerticle {
   }
 
   private void initData() {
-    service.insert(new Todo(Math.abs(new Random().nextInt()), "Something to do...", false, 1, "todo/ex"))
-      .setHandler(res -> {
+    service.initData().setHandler(res -> {
         if (res.failed()) {
-          System.err.println("[Error]Persistence service is not running!");
+          System.err.println("[Error] Persistence service is not running!");
           res.cause().printStackTrace();
         }
       });

@@ -2,6 +2,7 @@ package io.vertx.blueprint.todolist;
 
 import io.vertx.blueprint.todolist.entity.Todo;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 
 /**
  * Vert.x Blueprint Application - Todo Backend

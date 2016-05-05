@@ -19,7 +19,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
- * Test case for Todo API
+ * Test case for Todo API (using SingleApplicationVerticle)
  *
  * @author Eric Zhao
  */

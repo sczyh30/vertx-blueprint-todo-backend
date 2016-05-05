@@ -13,6 +13,8 @@ import java.util.List;
  */
 public interface TodoService {
 
+  Future<Boolean> initData();
+
   Future<Boolean> insert(Todo todo);
 
   Future<List<Todo>> getAll();
