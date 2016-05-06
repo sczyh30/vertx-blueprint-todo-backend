@@ -1,6 +1,7 @@
 # vertx-blueprint-todo-backend
 
-Vert.x blueprint application - A todo-backend implementation using Vert.x and Redis.
+Vert.x blueprint application - A todo-backend implementation using Vert.x 
+and various persistence(e.g. Redis or MySQL).
 
 ## Introduction
 This repository is an introduction to basic Vert.x web RESTful service development.
@@ -9,7 +10,7 @@ Detailed documents(both in Chinese and English) are provided below.
 ## Detailed Document
 
 - [English Version](docs/doc-en.md)
-- [简体中文文档](docs/doc-zh-cn.md)
+- [中文文档](docs/doc-zh-cn.md)
 
 ## Building
 

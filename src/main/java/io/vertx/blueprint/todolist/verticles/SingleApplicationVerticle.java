@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 /**
  * Vert.x Blueprint Application - Todo Backend
  * Single Application Verticle (Redis)
+ * Service and controller logic in one class
  *
  * @author Eric Zhao
  */

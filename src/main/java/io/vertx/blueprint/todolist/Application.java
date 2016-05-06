@@ -33,6 +33,7 @@ public class Application {
   }
 
   public static Verticle JdbcTodo() {
+    // in this example we use MySQL
     JsonObject config = new JsonObject()
       .put("url", "jdbc:mysql://localhost/vertx_blueprint?characterEncoding=UTF-8&useSSL=false")
       .put("driver_class", "com.mysql.cj.jdbc.Driver")

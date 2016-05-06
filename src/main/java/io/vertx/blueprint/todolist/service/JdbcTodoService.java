@@ -33,11 +33,18 @@ public class JdbcTodoService implements TodoService {
     "  `url` varchar(255) DEFAULT NULL,\n" +
     "  PRIMARY KEY (`id`) )";
   private static final String SQL_INSERT = "INSERT INTO `todo` " +
-    "(`title`, `completed`, `order`, `url`) VALUES (?, ?, ?, ?)";
+    "(`id`, `title`, `completed`, `order`, `url`) VALUES (?, ?, ?, ?, ?)";
   private static final String SQL_QUERY = "SELECT * FROM todo WHERE id = ?";
   private static final String SQL_QUERY_ALL = "SELECT * FROM todo";
-  private static final String SQL_UPDATE = "";
-  private static final String SQL_DELETE = "DELETE FROM `todo` WHERE `id` = %s";
+  private static final String SQL_UPDATE = "UPDATE `todo`\n" +
+    "SET\n" +
+    "`id` = ?,\n" +
+    "`title` = ?,\n" +
+    "`completed` = ?,\n" +
+    "`order` = ?,\n" +
+    "`url` = ?\n" +
+    "WHERE `id` = ?;";
+  private static final String SQL_DELETE = "DELETE FROM `todo` WHERE `id` = ?";
   private static final String SQL_DELETE_ALL = "DELETE FROM `todo`";
 
   public JdbcTodoService(JsonObject config) {
@@ -75,10 +82,11 @@ public class JdbcTodoService implements TodoService {
     client.getConnection(conn -> {
       if (conn.succeeded()) {
         final SQLConnection connection = conn.result();
-        connection.updateWithParams(SQL_INSERT, new JsonArray().add(todo.getTitle())
-        .add(todo.isCompleted())
-        .add(todo.getOrder())
-        .add(todo.getUrl()), r -> {
+        connection.updateWithParams(SQL_INSERT, new JsonArray().add(todo.getId())
+          .add(todo.getTitle())
+          .add(todo.isCompleted())
+          .add(todo.getOrder())
+          .add(todo.getUrl()), r -> {
           if (r.failed()) {
             result.fail(r.cause());
           } else {
@@ -149,8 +157,32 @@ public class JdbcTodoService implements TodoService {
     client.getConnection(conn -> {
       if (conn.succeeded()) {
         final SQLConnection connection = conn.result();
-        // TODO: implement this
-        connection.close();
+        this.getCertain(todoId).setHandler(r -> {
+          if (r.failed()) {
+            result.fail(r.cause());
+          } else {
+            Todo oldTodo = r.result();
+            if (oldTodo == null) {
+              result.complete(null);
+              return;
+            }
+            Todo fnTodo = oldTodo.merge(newTodo);
+            connection.updateWithParams(SQL_UPDATE, new JsonArray().add(oldTodo.getId())
+              .add(fnTodo.getTitle())
+              .add(fnTodo.isCompleted())
+              .add(fnTodo.getOrder())
+              .add(fnTodo.getUrl())
+              .add(oldTodo.getId()), x -> {
+
+              if (x.failed()) {
+                result.fail(r.cause());
+              } else {
+                result.complete(fnTodo);
+              }
+              connection.close();
+            });
+          }
+        });
       } else {
         result.fail(conn.cause());
       }
@@ -158,12 +190,12 @@ public class JdbcTodoService implements TodoService {
     return result;
   }
 
-  private Future<Boolean> deleteProcess(String sql) {
+  private Future<Boolean> deleteProcess(String sql, JsonArray params) {
     Future<Boolean> result = Future.future();
     client.getConnection(conn -> {
       if (conn.succeeded()) {
         final SQLConnection connection = conn.result();
-        connection.execute(sql, r -> {
+        connection.updateWithParams(sql, params, r -> {
           if (r.failed()) {
             result.complete(false);
           } else {
@@ -180,11 +212,11 @@ public class JdbcTodoService implements TodoService {
 
   @Override
   public Future<Boolean> delete(String todoId) {
-    return deleteProcess(String.format(SQL_DELETE, todoId));
+    return deleteProcess(SQL_DELETE, new JsonArray().add(todoId));
   }
 
   @Override
   public Future<Boolean> deleteAll() {
-    return deleteProcess(SQL_DELETE_ALL);
+    return deleteProcess(SQL_DELETE_ALL, new JsonArray());
   }
 }
