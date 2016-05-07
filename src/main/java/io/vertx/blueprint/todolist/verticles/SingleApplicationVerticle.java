@@ -7,6 +7,7 @@ import io.vertx.blueprint.todolist.entity.Todo;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
+import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
@@ -29,27 +30,19 @@ import java.util.stream.Collectors;
  */
 public class SingleApplicationVerticle extends AbstractVerticle {
 
-  private static String HOST = "127.0.0.1";
-  private static int PORT = 8082;
+  private static final String HOST = "127.0.0.1";
+  private static final int PORT = 8082;
 
-  private RedisClient redis;
+  private final RedisClient redis;
+
+  public SingleApplicationVerticle(RedisOptions redisOptions) {
+    this.redis = RedisClient.create(Vertx.vertx(), redisOptions);
+  }
 
   /**
-   * Init the redis client and save sample data
+   * Init sample data
    */
   private void initData() {
-    RedisOptions config;
-    // this is for OpenShift Redis Cartridge
-    String osPort = System.getenv("OPENSHIFT_REDIS_PORT");
-    String osHost = System.getenv("OPENSHIFT_REDIS_HOST");
-    if (osPort != null && osHost != null)
-      config = new RedisOptions()
-        .setHost(osHost).setPort(Integer.parseInt(osPort));
-    else
-      config = new RedisOptions().setHost(HOST);
-
-    redis = RedisClient.create(vertx, config);
-
     redis.hset(Constants.REDIS_TODO_KEY, "24", Json.encodePrettily(
       new Todo(24, "Something to do...", false, 1, "todo/ex")), res -> {
       if (res.failed()) {

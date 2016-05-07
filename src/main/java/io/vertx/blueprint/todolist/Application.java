@@ -44,7 +44,17 @@ public class Application {
   }
 
   public static Verticle singleTodo() {
-    return new SingleApplicationVerticle();
+    RedisOptions config;
+    // this is for OpenShift Redis Cartridge
+    String osPort = System.getenv("OPENSHIFT_REDIS_PORT");
+    String osHost = System.getenv("OPENSHIFT_REDIS_HOST");
+    if (osPort != null && osHost != null)
+      config = new RedisOptions()
+        .setHost(osHost).setPort(Integer.parseInt(osPort));
+    else
+      config = new RedisOptions().setHost("127.0.0.1");
+
+    return new SingleApplicationVerticle(config);
   }
 
   public static void runTodo(Verticle todoVerticle) {
