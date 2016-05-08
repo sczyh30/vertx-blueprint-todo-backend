@@ -2,7 +2,8 @@ package io.vertx.blueprint.todolist;
 
 import io.vertx.blueprint.todolist.entity.Todo;
 
-import io.vertx.blueprint.todolist.verticles.SingleApplicationVerticle;
+import io.vertx.blueprint.todolist.service.RedisTodoService;
+import io.vertx.blueprint.todolist.verticles.TodoVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
@@ -13,34 +14,47 @@ import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 
+import io.vertx.redis.RedisOptions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
- * Test case for Todo API (using SingleApplicationVerticle)
+ * Test case for Todo API
  *
  * @author Eric Zhao
  */
 @RunWith(VertxUnitRunner.class)
 public class TodoApiTest {
 
-  final static int port = 8082;
-  Vertx vertx;
+  private final static int PORT = 8084;
+  private Vertx vertx;
 
-  final Todo todoEx = new Todo(164, "Test case...", false, 22, "http://127.0.0.1:8082/todos/164");
-  final Todo todoUp = new Todo(164, "Test case...Update!", false, 26, "http://127.0.0.1:8082/todos/164");
+  private final Todo todoEx = new Todo(164, "Test case...", false, 22, "http://127.0.0.1:8082/todos/164");
+  private final Todo todoUp = new Todo(164, "Test case...Update!", false, 26, "http://127.0.0.1:8082/todos/164");
 
   @Before
   public void before(TestContext context) {
     vertx = Vertx.vertx();
-    final int port = Integer.getInteger("http.port", 8082);
+    final int port = Integer.getInteger("http.port", PORT);
     final DeploymentOptions options = new DeploymentOptions()
       .setConfig(new JsonObject().put("http.port", port)
       );
 
-    vertx.deployVerticle(SingleApplicationVerticle.class.getName(), options,
+    RedisOptions config;
+    // this is for OpenShift Redis Cartridge
+    String osPort = System.getenv("OPENSHIFT_REDIS_PORT");
+    String osHost = System.getenv("OPENSHIFT_REDIS_HOST");
+    if (osPort != null && osHost != null)
+      config = new RedisOptions()
+        .setHost(osHost).setPort(Integer.parseInt(osPort));
+    else
+      config = new RedisOptions().setHost("127.0.0.1");
+
+    TodoVerticle verticle = new TodoVerticle(new RedisTodoService(config));
+
+    vertx.deployVerticle(verticle, options,
       context.asyncAssertSuccess());
   }
 
@@ -54,7 +68,7 @@ public class TodoApiTest {
     HttpClient client = vertx.createHttpClient();
     Async async = context.async();
     Todo todo = new Todo(164, "Test case...", false, 22, "/164");
-    client.post(port, "localhost", "/todos", response -> {
+    client.post(PORT, "localhost", "/todos", response -> {
       context.assertEquals(201, response.statusCode());
       client.close();
       async.complete();
@@ -65,7 +79,7 @@ public class TodoApiTest {
   public void testGet(TestContext context) throws Exception {
     HttpClient client = vertx.createHttpClient();
     Async async = context.async();
-    client.getNow(port, "localhost", "/todos/164", response -> response.bodyHandler(body -> {
+    client.getNow(PORT, "localhost", "/todos/164", response -> response.bodyHandler(body -> {
       context.assertEquals(Utils.getTodoFromJson(body.toString()), todoEx);
       client.close();
       async.complete();
@@ -77,9 +91,9 @@ public class TodoApiTest {
     HttpClient client = vertx.createHttpClient();
     Async async = context.async();
     Todo todo = new Todo(164, "Test case...Update!", false, 26, "/164h");
-    client.request(HttpMethod.PATCH, port, "localhost", "/todos/164", response -> response.bodyHandler(body -> {
+    client.request(HttpMethod.PATCH, PORT, "localhost", "/todos/164", response -> response.bodyHandler(body -> {
       context.assertEquals(Utils.getTodoFromJson(body.toString()), todoUp);
-      client.request(HttpMethod.DELETE, port, "localhost", "/todos/164", rsp -> {
+      client.request(HttpMethod.DELETE, PORT, "localhost", "/todos/164", rsp -> {
         context.assertEquals(204, rsp.statusCode());
         async.complete();
       }).end();

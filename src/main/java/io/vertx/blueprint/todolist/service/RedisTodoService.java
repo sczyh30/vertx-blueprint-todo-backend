@@ -11,6 +11,7 @@ import io.vertx.redis.RedisClient;
 import io.vertx.redis.RedisOptions;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -79,11 +80,11 @@ public class RedisTodoService implements TodoService {
   }
 
   @Override
-  public Future<Todo> getCertain(String todoID) {
-    Future<Todo> result = Future.future();
+  public Future<Optional<Todo>> getCertain(String todoID) {
+    Future<Optional<Todo>> result = Future.future();
     redis.hget(Constants.REDIS_TODO_KEY, todoID, res -> {
       if (res.succeeded()) {
-        result.complete(Utils.getTodoFromJson(res.result()));
+        result.complete(Optional.ofNullable(Utils.getTodoFromJson(res.result())));
       } else
         result.fail(res.cause());
     });

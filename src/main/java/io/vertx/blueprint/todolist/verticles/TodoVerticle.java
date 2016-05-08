@@ -30,8 +30,8 @@ import java.util.function.Consumer;
  */
 public class TodoVerticle extends AbstractVerticle {
 
-  private static String HOST = "127.0.0.1";
-  private static int PORT = 8082;
+  private static final String HOST = "127.0.0.1";
+  private static final int PORT = 8082;
 
   private final TodoService service;
 
@@ -128,10 +128,10 @@ public class TodoVerticle extends AbstractVerticle {
     }
 
     service.getCertain(todoID).setHandler(resultHandler(context, res -> {
-      if (res == null)
+      if (!res.isPresent())
         notFound(context);
       else {
-        final String encoded = Json.encodePrettily(res);
+        final String encoded = Json.encodePrettily(res.get());
         context.response()
           .putHeader("content-type", "application/json; charset=utf-8")
           .end(encoded);

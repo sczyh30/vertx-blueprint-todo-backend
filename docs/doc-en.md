@@ -54,6 +54,8 @@ Now let's start!
 
 Vert.x core provides a fairly low level set of functionality for handling HTTP, and for some applications that will be sufficient. That's the main reason behind [Vert.x Web](http://vertx.io/docs/vertx-web/java). Vert.x-Web builds on Vert.x core to provide a richer set of functionality for building real web applications, more easily.
 
+### Gradle build file
+
 First, let's create the project. In this tutorial we use Gradle as build tool, but you can use any other build tools you prefer, such as Maven and SBT. Basically, you need a directory with:
 
 1. a `src/main/java` directory
@@ -105,7 +107,95 @@ You might not be familar with Gradle, that doesn't matter. Let's explain that:
 - We set both `targetCompatibility` and `sourceCompatibility` to **1.8**. This point is **important** as Vert.x requires Java 8.
 - In `dependencies` field, we declares our dependencies. `vertx-core` and `vert-web` for REST API. `vertx-redis-client` and `vertx-jdbc-client` for data access(`mysql-connector-java` for MySQL driver, and you could replace by what you need). `vertx-unit` for test.
 
-As we created `build.gradle`, let's start writing code~ Create the `src/main/java/io/vertx/blueprint/todolist/verticles/SingleApplicationVerticle.java ` file and write following content:
+As we created `build.gradle`, let's start writing code~
+
+### Todo entity
+
+First we need to create our data object - the `Todo` entity. Create the `src/main/java/io/vertx/blueprint/todolist/entity/Todo.java` file and write:
+
+```Java
+package io.vertx.blueprint.todolist.entity;
+
+
+public class Todo {
+
+  private int id;
+  private String title;
+  private Boolean completed;
+  private Integer order;
+  private String url;
+
+  public Todo() {
+  }
+
+  public Todo(int id, String title, Boolean completed, Integer order, String url) {
+    this.id = id;
+    this.title = title;
+    this.completed = completed;
+    this.order = order;
+    this.url = url;
+  }
+
+  public int getId() {
+    return id;
+  }
+
+  public void setId(int id) {
+    this.id = id;
+  }
+
+  public String getTitle() {
+    return title;
+  }
+
+  public void setTitle(String title) {
+    this.title = title;
+  }
+
+  public Boolean isCompleted() {
+    return getOrElse(completed, false);
+  }
+
+  public void setCompleted(Boolean completed) {
+    this.completed = completed;
+  }
+
+  public Integer getOrder() {
+    return getOrElse(order, 0);
+  }
+
+  public void setOrder(Integer order) {
+    this.order = order;
+  }
+
+  public String getUrl() {
+    return url;
+  }
+
+  public void setUrl(String url) {
+    this.url = url;
+  }
+
+
+  private <T> T getOrElse(T value, T defaultValue) {
+    return value == null ? defaultValue : value;
+  }
+
+  public Todo merge(Todo todo) {
+    return new Todo(id,
+      getOrElse(todo.title, title),
+      getOrElse(todo.completed, completed),
+      getOrElse(todo.order, order),
+      url);
+  }
+}
+```
+
+Our `Todo` entity consists of id, title, order, url and a flag indicates if it is completed. This is a simple Java bean and could be marshaled to JSON format.
+
+### Verticle
+
+Then we start writing our verticle. Create the `src/main/java/io/vertx/blueprint/todolist/verticles/SingleApplicationVerticle.java ` file and write following content:
 
 ```java
 package io.vertx.blueprint.todolist.verticles;
@@ -135,12 +225,71 @@ public class SingleApplicationVerticle extends AbstractVerticle {
 
 Our class `SingleApplicationVerticle` extends `AbstractVerticle` class. In Vert.x, a **verticle** is a component of the application. We can deploy *verticles* to run the components.
 
+The `start` method will be called when verticle is deployed. And notice this `start` method takes a parameter typed `Future<Void>`, which means this is asynchronous start method. The `Future` indicates whether your actions have been done. After done, you can call `complete` on the `Future` (or `fail`) to notify that you are done(success or failure).
+
+So next step is to create a http server and configure the routes to handle HTTP requests.
 
 ## REST API with Vert.x Web
 
+### Create HTTP server with route
+
+Let's change the `start` method with:
+
+```java
+@Override
+public void start(Future<Void> future) throws Exception {
+  initData();
+
+  Router router = Router.router(vertx); // <1>
+  // CORS support
+  Set<String> allowHeaders = new HashSet<>();
+  allowHeaders.add("x-requested-with");
+  allowHeaders.add("Access-Control-Allow-Origin");
+  allowHeaders.add("origin");
+  allowHeaders.add("Content-Type");
+  allowHeaders.add("accept");
+  Set<HttpMethod> allowMethods = new HashSet<>();
+  allowMethods.add(HttpMethod.GET);
+  allowMethods.add(HttpMethod.POST);
+  allowMethods.add(HttpMethod.DELETE);
+  allowMethods.add(HttpMethod.PATCH);
+
+  router.route().handler(BodyHandler.create()); // <2>
+  router.route().handler(CorsHandler.create("*") // <3>
+    .allowedHeaders(allowHeaders)
+    .allowedMethods(allowMethods));
+
+  // TODO:routes
+
+  vertx.createHttpServer() // <4>
+    .requestHandler(router::accept)
+    .listen(config().getInteger("http.port", PORT),
+      System.getProperty("http.address", HOST), result -> {
+        if (result.succeeded())
+          future.complete();
+        else
+          future.fail(result.cause());
+      });
+}
+```
+
+Wow! A long snippet, yeah? Don't worry, I'll explain that.
+
+First we call the `initData` method to init persistence data and then we create a `Router` object (1).
+
+### Configure the routes
+
+### Asynchronous Pattern
+
+### Todo logic implementation
+
 ## Decouple controller and service
 
-## Asynchronous Pattern
+### Too fuzzy?
+
+### Asynchronous service using Future
+
+### Refactor!
 
 ## Test our service
 
@@ -177,6 +326,57 @@ In Spring Boot, we configure the route using the annotation `@RequestMapping`. I
 As for sending response, we use `end` method to write HTTP response in Vert.x Web. In Spring Boot, we send response to client simply by returning the result directly in the controller method.
 
 ### From Play Framework 2
+
+If you are from Play Framework 2, you must be familiar with its asynchronous programming model. In Play Framework 2, we configure the route on the `routes` file, like the pattern `method path controller`:
+
+```scala
+GET     /todos/:todoId      controllers.TodoController.handleGetCertain(todoId: Int)
+```
+
+In Vert.x Web, we configure the route on the `Router` instance. So we can rewrite the above config:
+
+```java
+router.get("/todos/:todoId").handler(this::handleGetCertain);
+```
+
+`this::handleGetCertain` is the method reference (handler) that handles the request.
+
+In Play Framework 2, we use asynchronous pattern with `Future`. Every handler returns an `Action`, which refers to type `Request[A] => Result`. We write our logic inside the `block: => Future[Result]` (or simply `block: R[A] => Result`) function closure like this:
+
+```scala
+def handleGetCertain(todoId: Int): Action[AnyContent] = Action.async {
+    service.getCertain(todoId) map { // service return `Future[Option[Todo]]`
+        case Some(res) =>
+            Ok(Json.toJson(res))
+        case None =>
+            NotFound()
+    }
+}
+```
+
+And in Vert.x, we use asynchronous pattern with *callback*. We could rewrite as follows:
+
+```java
+private void handleCreateTodo(RoutingContext context) {
+    String todoId = context.request().getParam("todoId"); // get path variable
+    service.getCertain(todoId).setHandler(r -> { // service return `Future<Optional<Todo>>`
+        if (r.succeeded) {
+            Optional<Todo> res = r.result;
+            if (res.isPresent()) {
+                context.response()
+                    .putHeader("content-type", "application/json; charset=utf-8")
+                    .end(Json.encodePrettily(res)); // write `Result` to response with Ok(200)
+            } else {
+                sendError(404, context.response()); // NotFound(404)
+            }
+        } else {
+            sendError(503, context.response());
+        }
+    });
+}
+```
+
+In Vert.x, We write result to response directly by `end` method rather than encapsulate it with `Result`.
 
 ### Want to use other persistence frameworks?
 

@@ -4,6 +4,7 @@ import io.vertx.blueprint.todolist.entity.Todo;
 import io.vertx.core.Future;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Vert.x Blueprint Application - Todo Backend
@@ -19,7 +20,7 @@ public interface TodoService {
 
   Future<List<Todo>> getAll();
 
-  Future<Todo> getCertain(String todoID);
+  Future<Optional<Todo>> getCertain(String todoID);
 
   Future<Todo> update(String todoId, Todo newTodo);
 

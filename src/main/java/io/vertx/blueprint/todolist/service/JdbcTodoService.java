@@ -11,6 +11,7 @@ import io.vertx.ext.jdbc.JDBCClient;
 import io.vertx.ext.sql.SQLConnection;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -126,8 +127,8 @@ public class JdbcTodoService implements TodoService {
   }
 
   @Override
-  public Future<Todo> getCertain(String todoID) {
-    Future<Todo> result = Future.future();
+  public Future<Optional<Todo>> getCertain(String todoID) {
+    Future<Optional<Todo>> result = Future.future();
     client.getConnection(conn -> {
       if (conn.succeeded()) {
         final SQLConnection connection = conn.result();
@@ -137,9 +138,9 @@ public class JdbcTodoService implements TodoService {
           } else {
             List<JsonObject> list = r.result().getRows();
             if (list == null || list.isEmpty()) {
-              result.complete(null);
+              result.complete(Optional.empty());
             } else {
-              result.complete(Utils.getTodoFromJson(list.get(0).encode()));
+              result.complete(Optional.of(Utils.getTodoFromJson(list.get(0).encode())));
             }
           }
           connection.close();
@@ -161,18 +162,19 @@ public class JdbcTodoService implements TodoService {
           if (r.failed()) {
             result.fail(r.cause());
           } else {
-            Todo oldTodo = r.result();
-            if (oldTodo == null) {
+            Optional<Todo> oldTodo = r.result();
+            if (!oldTodo.isPresent()) {
               result.complete(null);
               return;
             }
-            Todo fnTodo = oldTodo.merge(newTodo);
-            connection.updateWithParams(SQL_UPDATE, new JsonArray().add(oldTodo.getId())
+            Todo fnTodo = oldTodo.get().merge(newTodo);
+            int updateId = oldTodo.get().getId();
+            connection.updateWithParams(SQL_UPDATE, new JsonArray().add(updateId)
               .add(fnTodo.getTitle())
               .add(fnTodo.isCompleted())
               .add(fnTodo.getOrder())
               .add(fnTodo.getUrl())
-              .add(oldTodo.getId()), x -> {
+              .add(updateId), x -> {
 
               if (x.failed()) {
                 result.fail(r.cause());

@@ -14,21 +14,6 @@ public class Todo {
   public Todo() {
   }
 
-  public Todo(String title) {
-    this.title = title;
-  }
-
-  public Todo(String title, Integer order) {
-    this.title = title;
-    this.order = order;
-  }
-
-  public Todo(String title, Boolean completed, Integer order) {
-    this.title = title;
-    this.completed = completed;
-    this.order = order;
-  }
-
   public Todo(int id, String title, Boolean completed, Integer order, String url) {
     this.id = id;
     this.title = title;
