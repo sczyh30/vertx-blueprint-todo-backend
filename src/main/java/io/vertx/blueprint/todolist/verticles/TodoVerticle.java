@@ -11,6 +11,7 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -104,20 +105,24 @@ public class TodoVerticle extends AbstractVerticle {
   }
 
   private void handleCreateTodo(RoutingContext context) {
-    final Todo todo = wrapObject(Utils.getTodoFromJson
-      (context.getBodyAsString()), context);
-    final String encoded = Json.encodePrettily(todo);
+    try {
+      final Todo todo = wrapObject(Utils.getTodoFromJson
+        (context.getBodyAsString()), context);
+      final String encoded = Json.encodePrettily(todo);
 
-    service.insert(todo).setHandler(resultHandler(context, res -> {
-      if (res) {
-        context.response()
-          .setStatusCode(201)
-          .putHeader("content-type", "application/json; charset=utf-8")
-          .end(encoded);
-      } else {
-        serviceUnavailable(context);
-      }
-    }));
+      service.insert(todo).setHandler(resultHandler(context, res -> {
+        if (res) {
+          context.response()
+            .setStatusCode(201)
+            .putHeader("content-type", "application/json; charset=utf-8")
+            .end(encoded);
+        } else {
+          serviceUnavailable(context);
+        }
+      }));
+    } catch (DecodeException e) {
+      sendError(400, context.response());
+    }
   }
 
   private void handleGetTodo(RoutingContext context) {
@@ -153,24 +158,28 @@ public class TodoVerticle extends AbstractVerticle {
   }
 
   private void handleUpdateTodo(RoutingContext context) {
-    String todoID = context.request().getParam("todoId");
-    final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString());
-    // handle error
-    if (newTodo == null || todoID == null) {
-      sendError(400, context.response());
-      return;
+    try {
+      String todoID = context.request().getParam("todoId");
+      final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString());
+      // handle error
+      if (newTodo == null || todoID == null) {
+        sendError(400, context.response());
+        return;
+      }
+      service.update(todoID, newTodo)
+        .setHandler(resultHandler(context, res -> {
+          if (res == null)
+            notFound(context);
+          else {
+            final String encoded = Json.encodePrettily(res);
+            context.response()
+              .putHeader("content-type", "application/json; charset=utf-8")
+              .end(encoded);
+          }
+        }));
+    } catch (DecodeException e) {
+      badRequest(context);
     }
-    service.update(todoID, newTodo)
-      .setHandler(resultHandler(context, res -> {
-        if (res == null)
-          notFound(context);
-        else {
-          final String encoded = Json.encodePrettily(res);
-          context.response()
-            .putHeader("content-type", "application/json; charset=utf-8")
-            .end(encoded);
-        }
-      }));
   }
 
   private Handler<AsyncResult<Boolean>> deleteResultHandler(RoutingContext context) {
@@ -204,6 +213,10 @@ public class TodoVerticle extends AbstractVerticle {
 
   private void notFound(RoutingContext context) {
     context.response().setStatusCode(404).end();
+  }
+
+  private void badRequest(RoutingContext context) {
+    context.response().setStatusCode(400).end();
   }
 
   private void serviceUnavailable(RoutingContext context) {

@@ -34,4 +34,4 @@ To build and run with Docker:
 
 Test result of the RESTful API (using [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec)):
 
-![RESTful API Test Result](docs/vert-api-test.png)
+![RESTful API Test Result](docs/img/vert-api-test.png)

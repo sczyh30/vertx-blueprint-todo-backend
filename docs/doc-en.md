@@ -3,13 +3,13 @@
 ## Table of contents
 
 - [Preface](#preface)
-- [Introduction to Vert.x](introduction-to-vertx)
-- [Our application - Todo service](our-application---todo-service)
-- [Let's Start!](lets-start)
-    - [Gradle build file](gradle-build-file)
-    - [Todo entity](todo-entity)
-    - [Verticle](verticle)
-- [REST API with Vert.x Web](rest-api-with-vertx-web)
+- [Introduction to Vert.x](#introduction-to-vertx)
+- [Our application - Todo service](#our-application---todo-service)
+- [Let's Start!](#lets-start)
+    - [Gradle build file](#gradle-build-file)
+    - [Todo entity](#todo-entity)
+    - [Verticle](#verticle)
+- [REST API with Vert.x Web](#rest-api-with-vertx-web)
 
 ## Preface
 
@@ -108,12 +108,10 @@ dependencies {
 }
 ```
 
-You might not be familar with Gradle, that doesn't matter. Let's explain that:
+You might not be familiar with Gradle, that doesn't matter. Let's explain that:
 
 - We set both `targetCompatibility` and `sourceCompatibility` to **1.8**. This point is **important** as Vert.x requires Java 8.
 - In `dependencies` field, we declares our dependencies. `vertx-core` and `vert-web` for REST API.
-
-/*`vertx-redis-client` and `vertx-jdbc-client` for data access(`mysql-connector-java` for MySQL driver, and you could replace by what you need). `vertx-unit` for test.*/
 
 As we created `build.gradle`, let's start writing code~
 
@@ -503,25 +501,31 @@ Here we use an approach with functional style. Because the `JsonArray` class imp
 
 #### Create Todo
 
-After having done two APIs above, you are more familar with Vert.x~ Now let's implement the logic of creating todo :
+After having done two APIs above, you are more familiar with Vert.x~ Now let's implement the logic of creating todo :
 
 ```java
 private void handleCreateTodo(RoutingContext context) {
-  final Todo todo = wrapObject(Utils.getTodoFromJson // (1)
-    (context.getBodyAsString()), context);
-  final String encoded = Json.encodePrettily(todo); // (2)
-  redis.hset(Constants.REDIS_TODO_KEY, String.valueOf(todo.getId()), // (3)
-    encoded, res -> {
-      if (res.succeeded())
-        context.response()
-          .setStatusCode(201)
-          .putHeader("content-type", "application/json; charset=utf-8")
-          .end(encoded); // (4)
-      else
-        sendError(503, context.response());
-    });
+  try {
+    final Todo todo = wrapObject(Utils.getTodoFromJson
+      (context.getBodyAsString()), context);
+    final String encoded = Json.encodePrettily(todo);
+    redis.hset(Constants.REDIS_TODO_KEY, String.valueOf(todo.getId()),
+      encoded, res -> {
+        if (res.succeeded())
+          context.response()
+            .setStatusCode(201)
+            .putHeader("content-type", "application/json; charset=utf-8")
+            .end(encoded);
+        else
+          sendError(503, context.response());
+      });
+  } catch (DecodeException e) {
+    sendError(400, context.response());
+  }
 }
 ```
+
+First we use `context.getBodyAsString()` to retrieve JSON data from the request body and decode JSON data to todo entity using `Utils.getTodoFromJson` method (1). Here we implement a `wrapObject` method that give corresponding url and random id(if no id) to the todo entity:
 
 ```java
 private Todo wrapObject(Todo todo, RoutingContext context) {
@@ -532,41 +536,62 @@ private Todo wrapObject(Todo todo, RoutingContext context) {
 }
 ```
 
+And then we encode again to JSON string format using `Json.encodePrettily` method (2). Next we insert the todo entity into hash table with `hset` operator (3). If the action is successful, write response with status `201` (4).
+
+[NOTE Status 201 ? | As you can see, we have set the response status to `201`. It means `CREATED`, and is the generally used in REST API that create an entity. By default Vert.x Web is setting the status to `200` meaning `OK`.]
+
+In case of the invalid request body, we should catch `DecodeException`. Once the request body is invalid, we send response with `400 Bad Request` status code.
+
 #### Update
 
-```java
-private void handleUpdateTodo(RoutingContext context) {
-  String todoID = context.request().getParam("todoId"); // (1)
-  final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString()); // (2)
-  // handle error
-  if (todoID == null || newTodo == null) {
-    sendError(400, context.response());
-    return;
-  }
+Well, if you want to change your plan, you may need to update the todo entity. Let's implement it. The logic of updating todo is a little more complicated:
 
-  redis.hget(Constants.REDIS_TODO_KEY, todoID, x -> {
-    if (x.succeeded()) {
-      String result = x.result();
-      if (result == null)
-        sendError(404, context.response());
-      else {
-        Todo oldTodo = Utils.getTodoFromJson(result);
-        String response = Json.encodePrettily(oldTodo.merge(newTodo));
-        redis.hset(Constants.REDIS_TODO_KEY, todoID, response, res -> {
-          if (res.succeeded()) {
-            context.response()
-              .putHeader("content-type", "application/json; charset=utf-8")
-              .end(response);
-          }
-        });
-      }
-    } else
-      sendError(503, context.response());
-  });
+```java
+// PATCH /todos/:todoId
+private void handleUpdateTodo(RoutingContext context) {
+  try {
+    String todoID = context.request().getParam("todoId"); // (1)
+    final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString()); // (2)
+    // handle error
+    if (todoID == null || newTodo == null) {
+      sendError(400, context.response());
+      return;
+    }
+
+    redis.hget(Constants.REDIS_TODO_KEY, todoID, x -> { // (3)
+      if (x.succeeded()) {
+        String result = x.result();
+        if (result == null)
+          sendError(404, context.response()); // (4)
+        else {
+          Todo oldTodo = Utils.getTodoFromJson(result);
+          String response = Json.encodePrettily(oldTodo.merge(newTodo)); // (5)
+          redis.hset(Constants.REDIS_TODO_KEY, todoID, response, res -> { // (6)
+            if (res.succeeded()) {
+              context.response()
+                .putHeader("content-type", "application/json; charset=utf-8")
+                .end(response); // (7)
+            }
+          });
+        }
+      } else
+        sendError(503, context.response());
+    });
+  } catch (DecodeException e) {
+    sendError(400, context.response());
+  }
 }
 ```
 
+A little longer yet? Let's see the code. First we retrieve the path parameter `todoId` from the route context (1). This is the id of the todo entity we want to change. Then we get the new todo entity from the request body (2). This step may throw `DecodeException` so we should also catch that. To update our todo entity, we need to retrieve the old todo entity first. We use `hget` operator to retrieve the old todo entity (3) and then check whether it exists. If not, return `404 Not Found` status (4). After getting the old todo, we could use `merge` method (defined in `Todo` before) to merge old todo with new todo (5) and then encode to JSON string. Next we update todo by `hset` operator (6) (`hset` means if no key matches in Redis, then create; or else update). If the operation is successful, write response with `200 OK` status.
+
+So this is the update process. Be patient, we have almost done it~ Let's implement the logic of removing todos.
+
 #### Remove/Remove all
+
+The logic of removing todos is much more easier. We use `hdel` operator to delete one certain todo entity and `del` operator to delete the entire todo hash table. If the operation is successful, write response with `204 No Content` status.
+
+Here are the code:
 
 ```java
 private void handleDeleteOne(RoutingContext context) {
@@ -578,9 +603,7 @@ private void handleDeleteOne(RoutingContext context) {
       sendError(503, context.response());
   });
 }
-```
 
-```java
 private void handleDeleteAll(RoutingContext context) {
   redis.del(Constants.REDIS_TODO_KEY, res -> {
     if (res.succeeded())
@@ -591,23 +614,117 @@ private void handleDeleteAll(RoutingContext context) {
 }
 ```
 
+[NOTE Status 204 ? | As you can see, we have set the response status to `204 - NO CONTENT`. Response to the HTTP method `delete` have generally no content.]
+
+Wow! Our todo verticle is completed! Excited! But how to run our verticle? We need to *deploy* it. So we need to implement a launcher class.
+
 ### Launcher Class
+
+Let's create `Application` class in `io.vertx.blueprint.todolist` root package and write the following code:
+
+```java
+package io.vertx.blueprint.todolist;
+
+import io.vertx.blueprint.todolist.verticles.SingleApplicationVerticle;
+import io.vertx.core.Verticle;
+import io.vertx.core.Vertx;
+import io.vertx.redis.RedisOptions;
+
+
+public class Application {
+
+  public static void main(String[] args) {
+    Vertx vertx = Vertx.vertx(); // (1)
+    RedisOptions config = new RedisOptions().setHost("127.0.0.1"); // (2)
+    Verticle todoVerticle = new SingleApplicationVerticle(config); // (3)
+    vertx.deployVerticle(todoVerticle, res -> { // (4)
+      if (res.succeeded())
+        System.out.println("Todo service is running at 8082 port...");
+      else
+        res.cause().printStackTrace();
+    });
+  }
+}
+```
+
+First we get the `Vertx` instance (1); Then we create a `RedisOptions` object (2), which refers to the config of Vert.x-Redis. Next we created one todo verticle instance (3). Finally, we deploy our verticle using `vertx.deployVerticle` method (4). When the deployment is done, our service will be running!
+
+### Package
+
+To build a jar package, add the following content to the `build.gradle` file:
+
+```groovy
+jar {
+  // by default fat jar
+  baseName = 'vertx-blueprint-todo-backend-fat'
+  from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+  manifest {
+    attributes 'Main-Class': 'io.vertx.blueprint.todolist.Application'
+  }
+}
+```
 
 - In the `jar` field, we configure it to generate **fat-jar** when compiles and point out the launcher class. A *fat-jar* is a convenient way to package a Vert.x application. It creates a jar containing both your application and all dependencies. Then, to launch it, you just need to execute `java -jar xxx.jar` without having to handle the `CLASSPATH`.
 
 ### Run our service
 
-Now it's time to run our REST service! Let's build and run the application:
+Now it's time to run our REST service! First we should start Redis service:
+
+```bash
+redis-server
+```
+
+Then let's build and run the application:
 
 ```bash
 gradle build
-java -jar
+java -jar build/libs/vertx-blueprint-todo-backend-fat.jar
+```
+
+If there are no problems, you will see *Todo service is running at 8082 port...*. The most convenient way to test our todo REST APIs is to use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec).
+
+Input `http://127.0.0.1:8082/todos`:
+
+![](img/todo-test-input.png)
+
+Test result:
+
+![](img/todo-test-result.png)
+
+Of course, we could also visit the link directly or use other tools(e.g. `curl`):
+
+```json
+sczyh30@sczyh30-workshop:~$ curl http://127.0.0.1:8082/todos
+[ {
+  "id" : 20578623,
+  "title" : "blah",
+  "completed" : false,
+  "order" : 95,
+  "url" : "http://127.0.0.1:8082/todos/20578623"
+}, {
+  "id" : 1744802607,
+  "title" : "blah",
+  "completed" : false,
+  "order" : 523,
+  "url" : "http://127.0.0.1:8082/todos/1744802607"
+}, {
+  "id" : 981337975,
+  "title" : "blah",
+  "completed" : false,
+  "order" : 95,
+  "url" : "http://127.0.0.1:8082/todos/981337975"
+} ]
 ```
 
 ## Decouple controller and service
 
+Yeah~ Our todo service has been running correctly. But review the `SingleApplicationVerticle` class, you will find it very messy. The controller and service mix together, causing the class big. Besides, it's not convenient to extend our service if we mix services with the controller. Thus, we need to decouple the controller and service.
 
 ### Asynchronous service using Future
+
+So let's design our service. As we mentioned above, our service needs to be asynchronous, so it should either takes a `Handler` parameter or returns `Future`. Here, we design our todo service using `Future`.
+
+Create `TodoService` interface in package `io.vertx.blueprint.todolist.service` and write:
 
 ```java
 package io.vertx.blueprint.todolist.service;
@@ -621,7 +738,7 @@ import java.util.Optional;
 
 public interface TodoService {
 
-  Future<Boolean> initData();
+  Future<Boolean> initData(); // init the data (or table)
 
   Future<Boolean> insert(Todo todo);
 
@@ -638,11 +755,318 @@ public interface TodoService {
 }
 ```
 
+Notice that the `getCertain` method returns a `Future<Optional<Todo>>`. What's an `Optional`? It represents an object that might be null. Because the todoId we give might not exist in our persistence, we could wrap the result with `Optional`. `Optional` is intended to prevent `NullPointerException` and it is widely used in functional programming.
+
+Now that we have designed our new asynchronous service interface, let's refactor the verticle!
+
 ### Refactor!
 
+We create a new verticle to implement that. Create the `src/main/java/io/vertx/blueprint/todolist/verticles/TodoVerticle.java ` file and write:
 
+```java
+package io.vertx.blueprint.todolist.verticles;
+
+import io.vertx.blueprint.todolist.Constants;
+import io.vertx.blueprint.todolist.Utils;
+import io.vertx.blueprint.todolist.entity.Todo;
+import io.vertx.blueprint.todolist.service.TodoService;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
+import io.vertx.core.Handler;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.DecodeException;
+import io.vertx.core.json.Json;
+import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.CorsHandler;
+
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
+import java.util.function.Consumer;
+
+public class TodoVerticle extends AbstractVerticle {
+
+  private static final String HOST = "127.0.0.1";
+  private static final int PORT = 8082;
+
+  private final TodoService service;
+
+  public TodoVerticle(TodoService service) {
+    this.service = service;
+  }
+
+  private void initData() {
+    // TODO
+  }
+
+  @Override
+  public void start(Future<Void> future) throws Exception {
+    Router router = Router.router(vertx);
+    // CORS support
+    Set<String> allowHeaders = new HashSet<>();
+    allowHeaders.add("x-requested-with");
+    allowHeaders.add("Access-Control-Allow-Origin");
+    allowHeaders.add("origin");
+    allowHeaders.add("Content-Type");
+    allowHeaders.add("accept");
+    Set<HttpMethod> allowMethods = new HashSet<>();
+    allowMethods.add(HttpMethod.GET);
+    allowMethods.add(HttpMethod.POST);
+    allowMethods.add(HttpMethod.DELETE);
+    allowMethods.add(HttpMethod.PATCH);
+
+    router.route().handler(BodyHandler.create());
+    router.route().handler(CorsHandler.create("*")
+      .allowedHeaders(allowHeaders)
+      .allowedMethods(allowMethods));
+
+    // routes
+    router.get(Constants.API_GET).handler(this::handleGetTodo);
+    router.get(Constants.API_LIST_ALL).handler(this::handleGetAll);
+    router.post(Constants.API_CREATE).handler(this::handleCreateTodo);
+    router.patch(Constants.API_UPDATE).handler(this::handleUpdateTodo);
+    router.delete(Constants.API_DELETE).handler(this::handleDeleteOne);
+    router.delete(Constants.API_DELETE_ALL).handler(this::handleDeleteAll);
+
+    vertx.createHttpServer()
+      .requestHandler(router::accept)
+      .listen(PORT, HOST, result -> {
+          if (result.succeeded())
+            future.complete();
+          else
+            future.fail(result.cause());
+        });
+
+    initData();
+  }
+
+  private void handleCreateTodo(RoutingContext context) {
+    // TODO
+  }
+
+  private void handleGetTodo(RoutingContext context) {
+    // TODO
+  }
+
+  private void handleGetAll(RoutingContext context) {
+    // TODO
+  }
+
+  private void handleUpdateTodo(RoutingContext context) {
+    // TODO
+  }
+
+  private void handleDeleteOne(RoutingContext context) {
+    // TODO
+  }
+
+  private void handleDeleteAll(RoutingContext context) {
+     // TODO
+  }
+
+  private void sendError(int statusCode, HttpServerResponse response) {
+    response.setStatusCode(statusCode).end();
+  }
+
+  private void badRequest(RoutingContext context) {
+    context.response().setStatusCode(400).end();
+  }
+
+  private void notFound(RoutingContext context) {
+    context.response().setStatusCode(404).end();
+  }
+
+  private void serviceUnavailable(RoutingContext context) {
+    context.response().setStatusCode(503).end();
+  }
+
+  private Todo wrapObject(Todo todo, RoutingContext context) {
+    if (todo.getId() == 0)
+      todo.setId(Math.abs(new Random().nextInt()));
+    todo.setUrl(context.request().absoluteURI() + "/" + todo.getId());
+    return todo;
+  }
+}
+```
+
+So familiar yeah? The main structure of the verticle doesn't vary very much. Now let's write each route handlers using our service interface.
+
+First is `initData` method, which is used to init persistence. Code:
+
+```java
+private void initData() {
+  service.initData().setHandler(res -> {
+      if (res.failed()) {
+        System.err.println("[Error] Persistence service is not running!");
+        res.cause().printStackTrace();
+      }
+    });
+}
+```
+
+We attach a handler on the `Future` returned by `service.initData()`. The handler will be called once the future is assigned or failed. Once the initialization action fails, our service will print error info on the console.
+
+Other handlers are similar to the version in `SingleApplicationVerticle`, but replace `redis` with `service`. We're not going to elaborate the detail. Just give code:
+
+```java
+/**
+ * Wrap the result handler with failure handler (503 Service Unavailable)
+ */
+private <T> Handler<AsyncResult<T>> resultHandler(RoutingContext context, Consumer<T> consumer) {
+  return res -> {
+    if (res.succeeded()) {
+      consumer.accept(res.result());
+    } else {
+      serviceUnavailable(context);
+    }
+  };
+}
+
+private void handleCreateTodo(RoutingContext context) {
+  try {
+    final Todo todo = wrapObject(Utils.getTodoFromJson
+      (context.getBodyAsString()), context);
+    final String encoded = Json.encodePrettily(todo);
+
+    service.insert(todo).setHandler(resultHandler(context, res -> {
+      if (res) {
+        context.response()
+          .setStatusCode(201)
+          .putHeader("content-type", "application/json; charset=utf-8")
+          .end(encoded);
+      } else {
+        serviceUnavailable(context);
+      }
+    }));
+  } catch (DecodeException e) {
+    sendError(400, context.response());
+  }
+}
+
+private void handleGetTodo(RoutingContext context) {
+  String todoID = context.request().getParam("todoId");
+  if (todoID == null) {
+    sendError(400, context.response());
+    return;
+  }
+
+  service.getCertain(todoID).setHandler(resultHandler(context, res -> {
+    if (!res.isPresent())
+      notFound(context);
+    else {
+      final String encoded = Json.encodePrettily(res.get());
+      context.response()
+        .putHeader("content-type", "application/json; charset=utf-8")
+        .end(encoded);
+    }
+  }));
+}
+
+private void handleGetAll(RoutingContext context) {
+  service.getAll().setHandler(resultHandler(context, res -> {
+    if (res == null) {
+      serviceUnavailable(context);
+    } else {
+      final String encoded = Json.encodePrettily(res);
+      context.response()
+        .putHeader("content-type", "application/json; charset=utf-8")
+        .end(encoded);
+    }
+  }));
+}
+
+private void handleUpdateTodo(RoutingContext context) {
+  try {
+    String todoID = context.request().getParam("todoId");
+    final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString());
+    // handle error
+    if (newTodo == null || todoID == null) {
+      sendError(400, context.response());
+      return;
+    }
+    service.update(todoID, newTodo)
+      .setHandler(resultHandler(context, res -> {
+        if (res == null)
+          notFound(context);
+        else {
+          final String encoded = Json.encodePrettily(res);
+          context.response()
+            .putHeader("content-type", "application/json; charset=utf-8")
+            .end(encoded);
+        }
+      }));
+  } catch (DecodeException e) {
+    badRequest(context);
+  }
+}
+
+private Handler<AsyncResult<Boolean>> deleteResultHandler(RoutingContext context) {
+  return res -> {
+    if (res.succeeded()) {
+      if (res.result()) {
+        context.response().setStatusCode(204).end();
+      } else {
+        serviceUnavailable(context);
+      }
+    } else {
+      serviceUnavailable(context);
+    }
+  };
+}
+
+private void handleDeleteOne(RoutingContext context) {
+  String todoID = context.request().getParam("todoId");
+  service.delete(todoID)
+    .setHandler(deleteResultHandler(context));
+}
+
+private void handleDeleteAll(RoutingContext context) {
+  service.deleteAll()
+    .setHandler(deleteResultHandler(context));
+}
+```
+
+Quite similar! Here we encapsulate two handler generator: `resultHandler` and `deleteResultHandler`. This can reduce some code.
+
+[NOTE Consumer | A consumer resembles a function object with such signature `void accept(T t)`. ]
+
+Since our new verticle has been done, it's time to implement the services. We will implement two services using different persistence. One is our familiar *Redis*, the other is *MySQL*.
 
 ### Implement our service with Vert.x-Redis
+
+Since you have implemented single version verticle with Redis just now, you are supposed to get accustomed to Vert.x-Redis. Here we just explain one `update` method, the others are similar and the code is on [GitHub]().
+
+#### Combining futures
+
+Recall the logic of *update* we wrote, we will discover that this is a composite of two actions - *get* and *insert*. So can we make use of existing `getCertain` and `insert` method? Of course! Because `Future` is composable. You can compose two or more futures. Sounds wonderful! Let's write:
+
+[NOTE Notice | The method `map` and `compose` is only available in Vert.x 3.3.0+, so you are supposed to change the dependency with `compile "io.vertx:vertx-core:3.3.0-SNAPSHOT"`. ]
+
+```java
+@Override
+public Future<Todo> update(String todoId, Todo newTodo) {
+  Future<Todo> result = Future.future(); // (1)
+  this.getCertain(todoId).compose(old -> { // (2)
+    if (old.isPresent()) {
+      Todo fnTodo = old.get().merge(newTodo);
+      return this.insert(fnTodo)
+        .map(r -> r ? fnTodo : null); // (3)
+    } else {
+      return Future.succeededFuture(); // (4)
+    }
+}).setHandler(result.completer()); // (5)
+  return result;
+}
+```
+
+First we created an empty `Future` (1). And then we called `this.getCertain` method, which returns `Future<Optional<Todo>>`. Simultaneously we use `compose` operator to combine this future with another future (2). The `compose` operator takes a `Function<T, Future<U>>` as parameter, which, actually is a lambda takes input with type `T` and returns a `Future` with type `U` (`T` and `U` can be the same).
+
+[NOTE The essence of `Future` | In functional programming, `Future` is actually a kind of `Monad`. This is a complicated concept, and you can just (actually more complicated!) refer it as objects that can be composed(`compose` or `flatMap`) and transformed(`map`). ]
 
 
 
