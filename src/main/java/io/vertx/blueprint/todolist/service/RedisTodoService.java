@@ -94,27 +94,15 @@ public class RedisTodoService implements TodoService {
   @Override
   public Future<Todo> update(String todoId, Todo newTodo) {
     Future<Todo> result = Future.future();
-    redis.hget(Constants.REDIS_TODO_KEY, todoId, x -> {
-      if (x.succeeded()) {
-        String res = x.result();
-        if (res == null)
-          result.complete(null);
-        else {
-          Todo oldTodo = Utils.getTodoFromJson(res);
-          Todo fnTodo = oldTodo.merge(newTodo);
-          String fnTodoStr = Json.encodePrettily(fnTodo);
-          redis.hset(Constants.REDIS_TODO_KEY, todoId, fnTodoStr, r -> {
-            if (r.succeeded()) {
-              result.complete(fnTodo);
-            } else {
-              result.fail(r.cause());
-            }
-          });
-        }
+    this.getCertain(todoId).compose(old -> {
+      if (old.isPresent()) {
+        Todo fnTodo = old.get().merge(newTodo);
+        return this.insert(fnTodo)
+          .map(r -> r ? fnTodo : null);
       } else {
-        result.fail(x.cause());
+        return Future.succeededFuture();
       }
-    });
+    }).setHandler(result.completer());
     return result;
   }
 

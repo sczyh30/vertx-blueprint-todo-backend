@@ -21,7 +21,7 @@ repositories {
 dependencies {
 
   compile "io.vertx:vertx-core:3.3.0-SNAPSHOT"
-  compile 'io.vertx:vertx-web:3.3.0-SNAPSHOT'
+  compile 'io.vertx:vertx-web:3.2.1'
   compile 'io.vertx:vertx-jdbc-client:3.2.1'
   compile 'mysql:mysql-connector-java:6.0.2'
   compile 'io.vertx:vertx-redis-client:3.2.1'
