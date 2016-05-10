@@ -10,6 +10,28 @@
     - [Todo entity](#todo-entity)
     - [Verticle](#verticle)
 - [REST API with Vert.x Web](#rest-api-with-vertx-web)
+    - [Create HTTP server with route](#create-http-server-with-route)
+    - [Configure the routes](#configure-the-routes)
+    - [Asynchronous Pattern](#asynchronous-pattern)
+    - [Todo logic implementation](#todo-logic-implementation)
+        - [Vert.x Redis](#vertx-redis)
+        - [Store format](#store-format)
+        - [Get/Get all](#getget-all)
+        - [Create Todo](#create-todo)
+        - [Update](#update)
+        - [Remove/Remove all](#removeremove-all)
+    - [Launcher Class](#launcher-class)
+    - [Package](#package)
+    - [Run our service](#run-our-service)
+- [Decouple controller and service](#decouple-controller-and-service)
+    - [Asynchronous service using Future](#asynchronous-service-using-future)
+    - [Refactor!](#refactor)
+    - [Implement our service with Vert.x-Redis](#implement-our-service-with-vertx-redis)
+    - [Implement our service with Vert.x-JDBC](#implement-our-service-with-vertx-jdbc)
+    - [Run!](#run)
+- [Cheers!](#cheers)
+- [From other frameworks?](#from-other-frameworks)
+
 
 ## Preface
 
@@ -22,9 +44,8 @@ What you are going to learn:
 - How to develop a REST API using Vert.x Web
 - How to make use of *asynchronous development model*
 - How to use persistence such as *Redis* and *MySQL* with the help of Vert.x data access components
-- How to test your application
 
-The code developed in this tutorial is available on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master).
+This is the first part of Vert.x Blueprint. The code developed in this tutorial is available on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master).
 
 ## Introduction to Vert.x
 
@@ -352,7 +373,7 @@ void doAsync(A a, B b, Handler<R> handler);
 Future<R> doAsync(A a, B b);
 ```
 
-The `Future` object refers to the result of an action that may not start, or pending, or finish or fail. We could also attach a `Handler` on the `Future` object:
+The `Future` object refers to the result of an action that may not start, or pending, or finish or fail. We could also attach a `Handler` on the `Future` object. The handler will be called when the future is assigned with result:
 
 ```java
 Future<R> future = doAsync(A a, B b);
@@ -375,7 +396,7 @@ Now It's time to implement our todo logic! Here we will use *Redis* as the backe
 
 #### Vert.x Redis
 
-Vert.x-redis allows data to be saved, retrieved, searched for, and deleted in a Redis asynchronously. To use the Vert.x Redis client, we should add the following dependency to the *dependencies* section of `build.gradle`:
+Vert.x-redis allows data to be saved, retrieved, searched for, and deleted in a Redis **asynchronously**. To use the Vert.x Redis client, we should add the following dependency to the *dependencies* section of `build.gradle`:
 
 ```gradle
 compile 'io.vertx:vertx-redis-client:3.2.1'
@@ -677,8 +698,8 @@ redis-server
 Then let's build and run the application:
 
 ```bash
-gradle build
-java -jar build/libs/vertx-blueprint-todo-backend-fat.jar
+`gradle build
+java -jar build/libs/vertx-blueprint-todo-backend-fat.jar`
 ```
 
 If there are no problems, you will see *Todo service is running at 8082 port...*. The most convenient way to test our todo REST APIs is to use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec).
@@ -722,7 +743,7 @@ Yeah~ Our todo service has been running correctly. But review the `SingleApplica
 
 ### Asynchronous service using Future
 
-So let's design our service. As we mentioned above, our service needs to be asynchronous, so it should either takes a `Handler` parameter or returns `Future`. Here, we design our todo service using `Future`.
+So let's design our service. As we mentioned above, our service needs to be asynchronous, so it should either takes a `Handler` parameter or returns `Future`. But imagine, if there are many handlers compositing, You will fall into *callback hell*, which is terrible. Here, we design our todo service using `Future`.
 
 Create `TodoService` interface in package `io.vertx.blueprint.todolist.service` and write:
 
@@ -1033,13 +1054,11 @@ private void handleDeleteAll(RoutingContext context) {
 
 Quite similar! Here we encapsulate two handler generator: `resultHandler` and `deleteResultHandler`. This can reduce some code.
 
-[NOTE Consumer | A consumer resembles a function object with such signature `void accept(T t)`. ]
-
 Since our new verticle has been done, it's time to implement the services. We will implement two services using different persistence. One is our familiar *Redis*, the other is *MySQL*.
 
 ### Implement our service with Vert.x-Redis
 
-Since you have implemented single version verticle with Redis just now, you are supposed to get accustomed to Vert.x-Redis. Here we just explain one `update` method, the others are similar and the code is on [GitHub]().
+Since you have implemented single version verticle with Redis just now, you are supposed to get accustomed to Vert.x-Redis. Here we just explain one `update` method, the others are similar and the code is on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master).
 
 #### Combining futures
 
@@ -1050,41 +1069,338 @@ Recall the logic of *update* we wrote, we will discover that this is a composite
 ```java
 @Override
 public Future<Todo> update(String todoId, Todo newTodo) {
-  Future<Todo> result = Future.future(); // (1)
-  this.getCertain(todoId).compose(old -> { // (2)
+  return this.getCertain(todoId).compose(old -> { // (1)
     if (old.isPresent()) {
       Todo fnTodo = old.get().merge(newTodo);
       return this.insert(fnTodo)
-        .map(r -> r ? fnTodo : null); // (3)
+        .map(r -> r ? fnTodo : null); (2)
     } else {
-      return Future.succeededFuture(); // (4)
+      return Future.succeededFuture(); (3)
     }
-}).setHandler(result.completer()); // (5)
+  });
+}
+```
+
+First we called `this.getCertain` method, which returns `Future<Optional<Todo>>`. Simultaneously we use `compose` operator to combine this future with another future (1). The `compose` operator takes a `Function<T, Future<U>>` as parameter, which, actually is a lambda takes input with type `T` and returns a `Future` with type `U` (`T` and `U` can be the same). Then we check whether the old todo exists. If so, we merge the old todo with the new todo, and then update the todo. Notice that `insert` method returns `Future<Boolean>`, so we should transform it into `Future<Todo>` by `map` operator (2). The `map` operator takes a `Function<T, U>` as parameter, which, actually is a lambda takes type `T` and returns type `U`. We then return the mapped `Future`. If not exists, we return a succeeded future with a null result (3). Finally return the composed `Future`.
+
+[NOTE The essence of `Future` | In functional programming, `Future` is actually a kind of `Monad`. This is a complicated concept, and you can just (actually more complicated!) refer it as objects that can be composed(`compose` or `flatMap`) and transformed(`map`). ]
+
+Our redis service is done~ Next let's implement our jdbc service.
+
+### Implement our service with Vert.x-JDBC
+
+#### JDBC ++ Asynchronous
+
+We are going to implement our jdbc version service using Vert.x-JDBC and MySQL. As we know, reading or writing data from database is an blocking action, which may take a long time. We must wait until the result is available, which is terrible. Fortunately, Vert.x-JDBC is **asynchronous**. That means we could interact with a database throught a JDBC driver asynchronously. So when you want to do:
+
+```java
+String SQL = "SELECT * FROM todo";
+// ...
+ResultSet rs = pstmt.executeQuery(SQL);
+```
+
+it will be:
+
+```java
+connection.query(SQL, result -> {
+    // do something with result...
+});
+```
+
+The asynchronous interactions are efficient as it avoids waiting for the result. The handler will be called once the result is available.
+
+#### Dependencies
+
+The first thing is to add some dependencies in our `build.gradle` file:
+
+```groovy
+compile 'io.vertx:vertx-jdbc-client:3.2.1'
+compile 'mysql:mysql-connector-java:6.0.2'
+```
+
+The first dependency provides `vertx-jdbc-client`, while the other provides the MySQL JDBC driver. If you want to use other databases, just change the second dependency to your database driver.
+
+#### Initialize the JDBC client
+
+In Vert.x-JDBC, we get a SQL connection from `JDBCClient` object; So let's see how to create a JDBCClient instance.
+
+Create `JdbcTodoService` class in `io.vertx.blueprint.todolist.service` package and write:
+
+```java
+package io.vertx.blueprint.todolist.service;
+
+import io.vertx.blueprint.todolist.Utils;
+import io.vertx.blueprint.todolist.entity.Todo;
+
+import io.vertx.core.Future;
+import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.jdbc.JDBCClient;
+import io.vertx.ext.sql.SQLConnection;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+
+public class JdbcTodoService implements TodoService {
+
+  private final Vertx vertx;
+  private final JsonObject config;
+  private final JDBCClient client;
+
+  public JdbcTodoService(JsonObject config) {
+    this(Vertx.vertx(), config);
+  }
+
+  public JdbcTodoService(Vertx vertx, JsonObject config) {
+    this.vertx = vertx;
+    this.config = config;
+    this.client = JDBCClient.createShared(vertx, config);
+  }
+}
+```
+
+We use `JDBCClient.createShared(vertx, config)` to create an instance of JDBC client. We pass a `JsonObject` instance as the configuration. We need to provide this configuration:
+
+- *url* - the JDBC url such as `jdbc:mysql://localhost/vertx_blueprint`
+- *driver_class* - the JDBC driver class name such as `com.mysql.cj.jdbc.Driver`
+- *user* - user of the database
+- *password* - password of the database
+
+Now we have the JDBC client. And we need a database table like this:
+
+```sql
+CREATE TABLE `todo` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `title` VARCHAR(255) DEFAULT NULL,
+  `completed` TINYINT(1) DEFAULT NULL,
+  `order` INT(11) DEFAULT NULL,
+  `url` VARCHAR(255) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+)
+```
+
+Let's store the sql sentence in our service:
+
+```java
+private static final String SQL_CREATE = "CREATE TABLE IF NOT EXISTS `todo` (\n" +
+  "  `id` int(11) NOT NULL AUTO_INCREMENT,\n" +
+  "  `title` varchar(255) DEFAULT NULL,\n" +
+  "  `completed` tinyint(1) DEFAULT NULL,\n" +
+  "  `order` int(11) DEFAULT NULL,\n" +
+  "  `url` varchar(255) DEFAULT NULL,\n" +
+  "  PRIMARY KEY (`id`) )";
+private static final String SQL_INSERT = "INSERT INTO `todo` " +
+  "(`id`, `title`, `completed`, `order`, `url`) VALUES (?, ?, ?, ?, ?)";
+private static final String SQL_QUERY = "SELECT * FROM todo WHERE id = ?";
+private static final String SQL_QUERY_ALL = "SELECT * FROM todo";
+private static final String SQL_UPDATE = "UPDATE `todo`\n" +
+  "SET\n" +
+  "`id` = ?,\n" +
+  "`title` = ?,\n" +
+  "`completed` = ?,\n" +
+  "`order` = ?,\n" +
+  "`url` = ?\n" +
+  "WHERE `id` = ?;";
+private static final String SQL_DELETE = "DELETE FROM `todo` WHERE `id` = ?";
+private static final String SQL_DELETE_ALL = "DELETE FROM `todo`";
+```
+
+Now that all are prepared ok, let's implement our JDBC todo service~
+
+#### Implement JDBC service
+
+In order to interact with database, we need to acquire connection from `JDBCClient` like this:
+
+```java
+client.getConnection(conn -> {
+      if (conn.succeeded()) {
+        final SQLConnection connection = conn.result();
+        // do something...
+      } else {
+        // handle failure
+      }
+    });
+```
+
+Since every action of our service need a connection, we encapsulate a method that returns `Handler<AsyncResult<SQLConnection>>` so that it can reduce some duplicate code:
+
+```java
+private Handler<AsyncResult<SQLConnection>> connHandler(Future future, Handler<SQLConnection> handler) {
+  return conn -> {
+    if (conn.succeeded()) {
+      final SQLConnection connection = conn.result();
+      handler.handle(connection);
+    } else {
+      future.fail(conn.cause());
+    }
+  };
+}
+```
+
+After getting the connection, we can do *CRUD* action on it:
+
+- `query` : execute a query (raw SQL)
+- `queryWithParams` : execute a prepared statement query
+- `updateWithParams` : execute a prepared statement insert, update or delete operation
+- `execute`: execute any SQL sentence
+
+All methods are asynchronous so takes a `Handler` that will be called when the action performed.
+
+Now let's write the `initData` method:
+
+```java
+@Override
+public Future<Boolean> initData() {
+  Future<Boolean> result = Future.future();
+  client.getConnection(connHandler(result, connection ->
+    connection.execute(SQL_CREATE, create -> {
+      if (create.succeeded()) {
+        result.complete(true);
+      } else {
+        result.fail(create.cause());
+      }
+      connection.close();
+    })));
   return result;
 }
 ```
 
-First we created an empty `Future` (1). And then we called `this.getCertain` method, which returns `Future<Optional<Todo>>`. Simultaneously we use `compose` operator to combine this future with another future (2). The `compose` operator takes a `Function<T, Future<U>>` as parameter, which, actually is a lambda takes input with type `T` and returns a `Future` with type `U` (`T` and `U` can be the same).
+This method create the `todo` table if it doesn't exist. Don't forget to close the connection.
 
-[NOTE The essence of `Future` | In functional programming, `Future` is actually a kind of `Monad`. This is a complicated concept, and you can just (actually more complicated!) refer it as objects that can be composed(`compose` or `flatMap`) and transformed(`map`). ]
+[NOTE Closing connection| Don't forget to close the SQL connection when you are done. The connection will be given back to the connection pool and be reused.]
 
+Now let's implement `insert` method:
 
+```java
+@Override
+public Future<Boolean> insert(Todo todo) {
+  Future<Boolean> result = Future.future();
+  client.getConnection(connHandler(result, connection -> {
+    connection.updateWithParams(SQL_INSERT, new JsonArray().add(todo.getId())
+      .add(todo.getTitle())
+      .add(todo.isCompleted())
+      .add(todo.getOrder())
+      .add(todo.getUrl()), r -> {
+      if (r.failed()) {
+        result.fail(r.cause());
+      } else {
+        result.complete(true);
+      }
+      connection.close();
+    });
+  }));
+  return result;
+}
+```
 
-### Implement our service with Vert.x-JDBC
+This method uses the `updateWithParams` method with an *INSERT* statement, and pass params into a `JsonArray` object in turn. This kind of action avoids SQL injection. Once the statement has been executed, we creates a new `Todo` entity.
 
+Now let's see `getCertain` method:
 
+```java
+@Override
+public Future<Optional<Todo>> getCertain(String todoID) {
+  Future<Optional<Todo>> result = Future.future();
+  client.getConnection(connHandler(result, connection -> {
+    connection.queryWithParams(SQL_QUERY, new JsonArray().add(todoID), r -> {
+      if (r.failed()) {
+        result.fail(r.cause());
+      } else {
+        List<JsonObject> list = r.result().getRows();
+        if (list == null || list.isEmpty()) {
+          result.complete(Optional.empty());
+        } else {
+          result.complete(Optional.of(Utils.getTodoFromJson(list.get(0).encode())));
+        }
+      }
+      connection.close();
+    });
+  }));
+  return result;
+}
+```
+
+Here after the statement having been executed, we got a `ResultSet` instance, which represents the results of a query. The list of column names are available with `getColumnNames`, and the actual results available with `getResults`. Here  retrieve the rows as a list of Json object instances with `getRows` method.
+
+The `getAll`, `update`, `delete` and `deleteAll` methods follow the same pattern. You can look up the code on GitHub.
 
 ### Run!
 
+Now we have to refactor our `Application` class to run this two kinds of service. Change the `Application` class with:
+
+```java
+package io.vertx.blueprint.todolist;
+
+import io.vertx.blueprint.todolist.service.JdbcTodoService;
+import io.vertx.blueprint.todolist.service.RedisTodoService;
+import io.vertx.blueprint.todolist.verticles.SingleApplicationVerticle;
+import io.vertx.blueprint.todolist.verticles.TodoVerticle;
+import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Verticle;
+import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonObject;
+import io.vertx.redis.RedisOptions;
 
 
-## Test our service
+public class Application {
 
+  public static Verticle RedisTodo() {
+    RedisOptions config = new RedisOptions().setHost("127.0.0.1");
+    return new TodoVerticle(new RedisTodoService(config));
+  }
 
+  public static Verticle JdbcTodo() {
+    // in this example we use MySQL
+    JsonObject config = new JsonObject()
+      .put("url", "jdbc:mysql://localhost/vertx_blueprint?characterEncoding=UTF-8&useSSL=false")
+      .put("driver_class", "com.mysql.cj.jdbc.Driver")
+      .put("user", "vbpdb1")
+      .put("password", "666666*")
+      .put("max_pool_size", 30);
+    return new TodoVerticle(new JdbcTodoService(config));
+  }
+
+  public static void runTodo(Verticle todoVerticle) {
+    Vertx vertx = Vertx.vertx();
+
+    final int port = Integer.getInteger("http.port", 8082);
+    DeploymentOptions options = new DeploymentOptions()
+      .setConfig(new JsonObject().put("http.port", port)
+      );
+
+    vertx.deployVerticle(todoVerticle, options, res -> {
+      if (res.succeeded())
+        System.out.println("Todo service is running at " + port + " port...");
+      else
+        res.cause().printStackTrace();
+    });
+  }
+
+  public static void main(String[] args) {
+    runTodo(JdbcTodo());
+  }
+}
+```
+
+You need to replace JDBC `url`, `user` and `password` by your own.
+
+Let's now build and run our application:
+
+```bash
+gradle build
+java -jar build/libs/vertx-blueprint-todo-backend-fat.jar
+```
+
+We could use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec) to test our todo API. As we didn’t change the API, the test should run smoothly.
 
 ## Cheers!
 
+Congratulations, you have finished the todo backend service~ In this long tutorial, you have learned the usage of `Vert.x Web`, `Vert.x Redis` and `Vert.x JDBC`, and most importantly, the asynchronous development model of Vert.x.
 
+To learn more about Vert.x, you can visit [Blog on Vert.x Website](http://vertx.io/blog/archives/).
 
 ## From other frameworks?
 

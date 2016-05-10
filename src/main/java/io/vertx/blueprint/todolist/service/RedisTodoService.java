@@ -93,8 +93,7 @@ public class RedisTodoService implements TodoService {
 
   @Override
   public Future<Todo> update(String todoId, Todo newTodo) {
-    Future<Todo> result = Future.future();
-    this.getCertain(todoId).compose(old -> {
+    return this.getCertain(todoId).compose(old -> {
       if (old.isPresent()) {
         Todo fnTodo = old.get().merge(newTodo);
         return this.insert(fnTodo)
@@ -102,8 +101,7 @@ public class RedisTodoService implements TodoService {
       } else {
         return Future.succeededFuture();
       }
-    }).setHandler(result.completer());
-    return result;
+    });
   }
 
   @Override
