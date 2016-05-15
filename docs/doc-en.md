@@ -35,7 +35,7 @@
 
 ## Preface
 
-In this tutorial, we are going to develop a RESTful web service - Todo Backend. This service provide a simple RESTful API in the form of a todo list, which we could add or complete todo stuff.
+In this tutorial, we are going to use Vert.x to develop a RESTful web service - Todo Backend. This service provide a simple RESTful API in the form of a todo list, which we could add or complete todo stuff.
 
 What you are going to learn:
 
@@ -309,9 +309,9 @@ That means we need to enable [CORS support](http://enable-cors.org/server.html) 
 
 Next we attach the `BodyHandler` to the router (3). The `BodyHandler` allows you to retrieve request bodies and read data. For example, we can retrieve JSON data from the request body when implementing our REST service. We could enable it globally with `router.route().handler(BodyHandler.create())`.
 
-Finally we create a HTTP server with `vertx.createHttpServer()` method. Note, this is the functionality of Vert.x Core. We then attach our *router handler* to the server, which is actually the role of Vert.x Web.
+Finally we create a HTTP server with `vertx.createHttpServer()` method (4). Note, this is the functionality of Vert.x Core. We then attach our *router handler* to the server, which is actually the role of Vert.x Web.
 You may not familiar with the format like `router::accept`. It's a method reference and here it constructs a handler that handles requests by route. When requests arrive, Vert.x will call `accept` method.
-The sever is bound to the 8082 port. And because the process might fail, we also pass a handler to `listen` method to check whether the server is established or failed.
+The server is bound to the 8082 port. And because the process might fail, we also pass a handler to `listen` method to check whether the server is established or failed.
 As we mentioned above, we use `future.complete` to notify success and `future.fail` to notify failure.
 
 So far, we have created the HTTP server. But you haven't see routes about our service yeah? It's time to declare them!
@@ -392,7 +392,7 @@ Most of Vert.x APIs are handler-based pattern. We will see both of the two patte
 
 Now It's time to implement our todo logic! Here we will use *Redis* as the backend persistence. [Redis](http://redis.io/) is an open source, in-memory data structure store, used as database, cache and message broker. It is often referred to as a data structure server since keys can contain strings, hashes, lists, sets and sorted sets. And fortunately, Vert.x provides us Vert.x-redis, a component that allows us to process data with Redis.
 
-[NOTE How to install and run Redis? | Please follow the concrete instruction on [Redis Website](http://redis.io/download#installation) ]
+[NOTE How to install and run Redis? | Please follow the concrete instruction on [Redis Website](http://redis.io/download#installation). ]
 
 #### Vert.x Redis
 
@@ -516,7 +516,7 @@ private void handleGetAll(RoutingContext context) {
 }
 ```
 
-Here we use `hvals` operation (1). `hvals` returns all values in the hash stored at key. In Vert.x-redis, it returns data as a `JsonArray` object. In the handler we first check whether the action is successful as before. If okay, we could write the result to response.Notice that we cannot directly write the returning `JsonArray` to the response as each value in `JsonArray` we retrieved from Redis was escaped so some characters are not correct. So we should first convert them into todo entity and then re-encode them to JSON.
+Here we use `hvals` operation (1). `hvals` returns all values in the hash stored at key. In Vert.x-redis, it returns data as a `JsonArray` object. In the handler we first check whether the action is successful as before. If okay, we could write the result to response. Notice that we cannot directly write the returning `JsonArray` to the response as each value in `JsonArray` we retrieved from Redis was escaped so some characters are not correct. So we should first convert them into todo entity and then re-encode them to JSON.
 
 Here we use an approach with functional style. Because the `JsonArray` class implements `Iterable<Object>` interface (behave like `List` yeah?), we could convert it to `Stream` using `stream` method. The `Stream` here is not the IO stream, but data flow. Then we call `Utils.getTodoFromJson` method on every item to convert every value(in string format) to `Todo` entity, using `map` operator. We don't explain `map` operator in detail but, it's really important in functional programming. After mapping, we collect the `Stream` in the form of `List<Todo>`. Now we could use `Json.encodePrettily` method to convert the list to JSON string. Finally we write the encoded result to response as before (3).
 
@@ -698,8 +698,8 @@ redis-server
 Then let's build and run the application:
 
 ```bash
-`gradle build
-java -jar build/libs/vertx-blueprint-todo-backend-fat.jar`
+gradle build
+java -jar build/libs/vertx-blueprint-todo-backend-fat.jar
 ```
 
 If there are no problems, you will see *Todo service is running at 8082 port...*. The most convenient way to test our todo REST APIs is to use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec).
@@ -1404,7 +1404,7 @@ To learn more about Vert.x, you can visit [Blog on Vert.x Website](http://vertx.
 
 ## From other frameworks?
 
-Well, you might have used other frameworks before, like Spring Boot. In this section, I will use analogy to introduce the concepts about Vert.x.
+Well, you might have used other frameworks before, like Spring Boot. In this section, I will use analogy to introduce the concepts about Vert.x Web.
 
 ### From Spring Boot/Spring MVC
 
