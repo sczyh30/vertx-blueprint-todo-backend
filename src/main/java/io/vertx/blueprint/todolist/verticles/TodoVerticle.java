@@ -1,7 +1,6 @@
 package io.vertx.blueprint.todolist.verticles;
 
 import io.vertx.blueprint.todolist.Constants;
-import io.vertx.blueprint.todolist.Utils;
 import io.vertx.blueprint.todolist.entity.Todo;
 import io.vertx.blueprint.todolist.service.TodoService;
 
@@ -81,7 +80,7 @@ public class TodoVerticle extends AbstractVerticle {
     vertx.createHttpServer()
       .requestHandler(router::accept)
       .listen(config().getInteger("http.port", PORT),
-        System.getProperty("http.address", HOST), result -> {
+        config().getString("http.address", HOST), result -> {
           if (result.succeeded())
             future.complete();
           else
@@ -106,15 +105,14 @@ public class TodoVerticle extends AbstractVerticle {
 
   private void handleCreateTodo(RoutingContext context) {
     try {
-      final Todo todo = wrapObject(Utils.getTodoFromJson
-        (context.getBodyAsString()), context);
+      final Todo todo = wrapObject(new Todo(context.getBodyAsString()), context);
       final String encoded = Json.encodePrettily(todo);
 
       service.insert(todo).setHandler(resultHandler(context, res -> {
         if (res) {
           context.response()
             .setStatusCode(201)
-            .putHeader("content-type", "application/json; charset=utf-8")
+            .putHeader("content-type", "application/json")
             .end(encoded);
         } else {
           serviceUnavailable(context);
@@ -138,7 +136,7 @@ public class TodoVerticle extends AbstractVerticle {
       else {
         final String encoded = Json.encodePrettily(res.get());
         context.response()
-          .putHeader("content-type", "application/json; charset=utf-8")
+          .putHeader("content-type", "application/json")
           .end(encoded);
       }
     }));
@@ -151,7 +149,7 @@ public class TodoVerticle extends AbstractVerticle {
       } else {
         final String encoded = Json.encodePrettily(res);
         context.response()
-          .putHeader("content-type", "application/json; charset=utf-8")
+          .putHeader("content-type", "application/json")
           .end(encoded);
       }
     }));
@@ -160,9 +158,9 @@ public class TodoVerticle extends AbstractVerticle {
   private void handleUpdateTodo(RoutingContext context) {
     try {
       String todoID = context.request().getParam("todoId");
-      final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString());
+      final Todo newTodo = new Todo(context.getBodyAsString());
       // handle error
-      if (newTodo == null || todoID == null) {
+      if (todoID == null) {
         sendError(400, context.response());
         return;
       }
@@ -173,7 +171,7 @@ public class TodoVerticle extends AbstractVerticle {
           else {
             final String encoded = Json.encodePrettily(res);
             context.response()
-              .putHeader("content-type", "application/json; charset=utf-8")
+              .putHeader("content-type", "application/json")
               .end(encoded);
           }
         }));
@@ -232,7 +230,7 @@ public class TodoVerticle extends AbstractVerticle {
    */
   private Todo wrapObject(Todo todo, RoutingContext context) {
     if (todo.getId() == 0)
-      todo.setId(Math.abs(new Random().nextInt()));
+      todo.setIncId();
     todo.setUrl(context.request().absoluteURI() + "/" + todo.getId());
     return todo;
   }

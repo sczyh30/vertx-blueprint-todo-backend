@@ -43,7 +43,7 @@ public class Application {
     return new TodoVerticle(new JdbcTodoService(config));
   }
 
-  public static Verticle singleTodo() {
+  /*public static Verticle singleTodo() {
     RedisOptions config;
     // this is for OpenShift Redis Cartridge
     String osPort = System.getenv("OPENSHIFT_REDIS_PORT");
@@ -55,7 +55,7 @@ public class Application {
       config = new RedisOptions().setHost("127.0.0.1");
 
     return new SingleApplicationVerticle(config);
-  }
+  }*/
 
   public static void runTodo(Verticle todoVerticle) {
     Vertx vertx = Vertx.vertx();

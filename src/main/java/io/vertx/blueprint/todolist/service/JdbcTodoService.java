@@ -1,6 +1,5 @@
 package io.vertx.blueprint.todolist.service;
 
-import io.vertx.blueprint.todolist.Utils;
 import io.vertx.blueprint.todolist.entity.Todo;
 
 import io.vertx.core.AsyncResult;
@@ -51,11 +50,7 @@ public class JdbcTodoService implements TodoService {
   private static final String SQL_DELETE_ALL = "DELETE FROM `todo`";
 
   public JdbcTodoService(JsonObject config) {
-    this(Vertx.vertx(), config);
-  }
-
-  public JdbcTodoService(Vertx vertx, JsonObject config) {
-    this.vertx = vertx;
+    this.vertx = Vertx.vertx();
     this.config = config;
     this.client = JDBCClient.createShared(vertx, config);
   }
@@ -115,7 +110,7 @@ public class JdbcTodoService implements TodoService {
           result.fail(r.cause());
         } else {
           List<Todo> todos = r.result().getRows().stream()
-            .map(x -> Utils.getTodoFromJson((String) x.encode()))
+            .map(Todo::new)
             .collect(Collectors.toList());
           result.complete(todos);
         }
@@ -136,7 +131,7 @@ public class JdbcTodoService implements TodoService {
           if (list == null || list.isEmpty()) {
             result.complete(Optional.empty());
           } else {
-            result.complete(Optional.of(Utils.getTodoFromJson(list.get(0).encode())));
+            result.complete(Optional.of(new Todo(list.get(0))));
           }
         }
         connection.close();

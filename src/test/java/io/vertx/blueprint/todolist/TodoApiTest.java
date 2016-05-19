@@ -80,7 +80,7 @@ public class TodoApiTest {
     HttpClient client = vertx.createHttpClient();
     Async async = context.async();
     client.getNow(PORT, "localhost", "/todos/164", response -> response.bodyHandler(body -> {
-      context.assertEquals(Utils.getTodoFromJson(body.toString()), todoEx);
+      context.assertEquals(new Todo(body.toString()), todoEx);
       client.close();
       async.complete();
     }));
@@ -92,7 +92,7 @@ public class TodoApiTest {
     Async async = context.async();
     Todo todo = new Todo(164, "Test case...Update!", false, 26, "/164h");
     client.request(HttpMethod.PATCH, PORT, "localhost", "/todos/164", response -> response.bodyHandler(body -> {
-      context.assertEquals(Utils.getTodoFromJson(body.toString()), todoUp);
+      context.assertEquals(new Todo(body.toString()), todoUp);
       client.request(HttpMethod.DELETE, PORT, "localhost", "/todos/164", rsp -> {
         context.assertEquals(204, rsp.statusCode());
         async.complete();

@@ -1,7 +1,6 @@
 package io.vertx.blueprint.todolist.service;
 
 import io.vertx.blueprint.todolist.Constants;
-import io.vertx.blueprint.todolist.Utils;
 import io.vertx.blueprint.todolist.entity.Todo;
 
 import io.vertx.core.Future;
@@ -27,19 +26,11 @@ public class RedisTodoService implements TodoService {
   private final RedisClient redis;
 
   public RedisTodoService() {
-    this(Vertx.vertx());
+    this(new RedisOptions());
   }
 
   public RedisTodoService(RedisOptions config) {
-    this(Vertx.vertx(), config);
-  }
-
-  public RedisTodoService(Vertx vertx) {
-    this(vertx, new RedisOptions());
-  }
-
-  public RedisTodoService(Vertx vertx, RedisOptions config) {
-    this.vertx = vertx;
+    this.vertx = Vertx.vertx();
     this.config = config;
     this.redis = RedisClient.create(vertx, config);
   }
@@ -71,7 +62,7 @@ public class RedisTodoService implements TodoService {
       if (res.succeeded()) {
         result.complete(res.result()
           .stream()
-          .map(x -> Utils.getTodoFromJson((String) x))
+          .map(x -> new Todo((String) x))
           .collect(Collectors.toList()));
       } else
         result.fail(res.cause());
@@ -84,7 +75,8 @@ public class RedisTodoService implements TodoService {
     Future<Optional<Todo>> result = Future.future();
     redis.hget(Constants.REDIS_TODO_KEY, todoID, res -> {
       if (res.succeeded()) {
-        result.complete(Optional.ofNullable(Utils.getTodoFromJson(res.result())));
+        result.complete(Optional.ofNullable(
+          res.result() == null ? null : new Todo(res.result())));
       } else
         result.fail(res.cause());
     });

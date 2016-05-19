@@ -711,6 +711,358 @@ sczyh30@sczyh30-workshop:~$ curl http://127.0.0.1:8082/todos
 
 ## 将服务与控制器分离
 
+啊哈～我们的待办事项服务已经可以正常运行了，但是回头再来看看 `SingleApplicationVerticle` 类的代码，你会发现它非常混乱，待办事项业务逻辑与控制器混杂在一起，让这个类非常的庞大，并且这也不利于我们服务的扩展。根据面向对象解耦的思想，我们需要将控制器部分与业务逻辑部分分离。
+
+### 用Future实现异步服务
+
+下面我们来设计我们的业务逻辑层。就像我们之前提到的那样，我们的服务需要是异步的，因此这些服务的方法要么需要接受一个`Handler`参数作为回调，要么需要返回一个`Future`对象。但是想象一下很多个`Handler`混杂在一起嵌套的情况，你会陷入 *回调地狱*，这是非常糟糕的。因此，这里我们用`Future`实现我们的待办事项服务。
+
+在 `io.vertx.blueprint.todolist.service` 包下创建 `TodoService` 接口并且编写以下代码：
+
+```java
+package io.vertx.blueprint.todolist.service;
+
+import io.vertx.blueprint.todolist.entity.Todo;
+import io.vertx.core.Future;
+
+import java.util.List;
+import java.util.Optional;
+
+
+public interface TodoService {
+
+  Future<Boolean> initData(); // init the data (or table)
+
+  Future<Boolean> insert(Todo todo);
+
+  Future<List<Todo>> getAll();
+
+  Future<Optional<Todo>> getCertain(String todoID);
+
+  Future<Todo> update(String todoId, Todo newTodo);
+
+  Future<Boolean> delete(String todoId);
+
+  Future<Boolean> deleteAll();
+
+}
+```
+
+注意到`getCertain`方法返回一个`Future<Optional<Todo>>`对象。那么`Optional`是啥呢？它封装了一个可能为空的对象。因为数据库里面可能没有与我们给定的`todoId`相对应的待办事项，查询的结果可能为空，因此我们给它包装上 `Optional`。`Optional` 可以避免万恶的 `NullPointerException`，并且它在函数式编程中用途特别广泛（在Haskell中对应 **Maybe Monad**）。
+
+既然我们已经设计好我们的异步服务接口了，让我们来重构原先的Verticle吧！
+
+### 重构！
+
+我们创建一个新的Verticle。在 `io.vertx.blueprint.todolist.verticles` 包中创建 `TodoVerticle` 类，并编写以下代码：
+
+```java
+package io.vertx.blueprint.todolist.verticles;
+
+import io.vertx.blueprint.todolist.Constants;
+import io.vertx.blueprint.todolist.Utils;
+import io.vertx.blueprint.todolist.entity.Todo;
+import io.vertx.blueprint.todolist.service.TodoService;
+
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
+import io.vertx.core.Handler;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.DecodeException;
+import io.vertx.core.json.Json;
+import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.CorsHandler;
+
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
+import java.util.function.Consumer;
+
+public class TodoVerticle extends AbstractVerticle {
+
+  private static final String HOST = "127.0.0.1";
+  private static final int PORT = 8082;
+
+  private final TodoService service;
+
+  public TodoVerticle(TodoService service) {
+    this.service = service;
+  }
+
+  private void initData() {
+    // TODO
+  }
+
+  @Override
+  public void start(Future<Void> future) throws Exception {
+    Router router = Router.router(vertx);
+    // CORS support
+    Set<String> allowHeaders = new HashSet<>();
+    allowHeaders.add("x-requested-with");
+    allowHeaders.add("Access-Control-Allow-Origin");
+    allowHeaders.add("origin");
+    allowHeaders.add("Content-Type");
+    allowHeaders.add("accept");
+    Set<HttpMethod> allowMethods = new HashSet<>();
+    allowMethods.add(HttpMethod.GET);
+    allowMethods.add(HttpMethod.POST);
+    allowMethods.add(HttpMethod.DELETE);
+    allowMethods.add(HttpMethod.PATCH);
+
+    router.route().handler(BodyHandler.create());
+    router.route().handler(CorsHandler.create("*")
+      .allowedHeaders(allowHeaders)
+      .allowedMethods(allowMethods));
+
+    // routes
+    router.get(Constants.API_GET).handler(this::handleGetTodo);
+    router.get(Constants.API_LIST_ALL).handler(this::handleGetAll);
+    router.post(Constants.API_CREATE).handler(this::handleCreateTodo);
+    router.patch(Constants.API_UPDATE).handler(this::handleUpdateTodo);
+    router.delete(Constants.API_DELETE).handler(this::handleDeleteOne);
+    router.delete(Constants.API_DELETE_ALL).handler(this::handleDeleteAll);
+
+    vertx.createHttpServer()
+      .requestHandler(router::accept)
+      .listen(PORT, HOST, result -> {
+          if (result.succeeded())
+            future.complete();
+          else
+            future.fail(result.cause());
+        });
+
+    initData();
+  }
+
+  private void handleCreateTodo(RoutingContext context) {
+    // TODO
+  }
+
+  private void handleGetTodo(RoutingContext context) {
+    // TODO
+  }
+
+  private void handleGetAll(RoutingContext context) {
+    // TODO
+  }
+
+  private void handleUpdateTodo(RoutingContext context) {
+    // TODO
+  }
+
+  private void handleDeleteOne(RoutingContext context) {
+    // TODO
+  }
+
+  private void handleDeleteAll(RoutingContext context) {
+     // TODO
+  }
+
+  private void sendError(int statusCode, HttpServerResponse response) {
+    response.setStatusCode(statusCode).end();
+  }
+
+  private void badRequest(RoutingContext context) {
+    context.response().setStatusCode(400).end();
+  }
+
+  private void notFound(RoutingContext context) {
+    context.response().setStatusCode(404).end();
+  }
+
+  private void serviceUnavailable(RoutingContext context) {
+    context.response().setStatusCode(503).end();
+  }
+
+  private Todo wrapObject(Todo todo, RoutingContext context) {
+    if (todo.getId() == 0)
+      todo.setId(Math.abs(new Random().nextInt()));
+    todo.setUrl(context.request().absoluteURI() + "/" + todo.getId());
+    return todo;
+  }
+}
+```
+
+很熟悉吧？这个Verticle的结构与我们之前的Verticle相类似，这里就不多说了。下面我们来利用我们之前编写的服务接口实现每一个控制器方法。
+
+首先先实现 `initData` 方法，此方法用于初始化存储结构：
+
+```java
+private void initData() {
+  service.initData().setHandler(res -> {
+      if (res.failed()) {
+        System.err.println("[Error] Persistence service is not running!");
+        res.cause().printStackTrace();
+      }
+    });
+}
+```
+
+我们给`service.initData()`方法返回的`Future`对象绑定了一个`Handler`，这个`Handler`将会在`Future`得到结果的时候被调用。一旦初始化过程失败，错误信息将会显示到终端上。
+
+其它的方法实现也类似，这里就不详细解释了，直接放上代码，非常简洁明了：
+
+```java
+/**
+ * Wrap the result handler with failure handler (503 Service Unavailable)
+ */
+private <T> Handler<AsyncResult<T>> resultHandler(RoutingContext context, Consumer<T> consumer) {
+  return res -> {
+    if (res.succeeded()) {
+      consumer.accept(res.result());
+    } else {
+      serviceUnavailable(context);
+    }
+  };
+}
+
+private void handleCreateTodo(RoutingContext context) {
+  try {
+    final Todo todo = wrapObject(Utils.getTodoFromJson
+      (context.getBodyAsString()), context);
+    final String encoded = Json.encodePrettily(todo);
+
+    service.insert(todo).setHandler(resultHandler(context, res -> {
+      if (res) {
+        context.response()
+          .setStatusCode(201)
+          .putHeader("content-type", "application/json; charset=utf-8")
+          .end(encoded);
+      } else {
+        serviceUnavailable(context);
+      }
+    }));
+  } catch (DecodeException e) {
+    sendError(400, context.response());
+  }
+}
+
+private void handleGetTodo(RoutingContext context) {
+  String todoID = context.request().getParam("todoId");
+  if (todoID == null) {
+    sendError(400, context.response());
+    return;
+  }
+
+  service.getCertain(todoID).setHandler(resultHandler(context, res -> {
+    if (!res.isPresent())
+      notFound(context);
+    else {
+      final String encoded = Json.encodePrettily(res.get());
+      context.response()
+        .putHeader("content-type", "application/json; charset=utf-8")
+        .end(encoded);
+    }
+  }));
+}
+
+private void handleGetAll(RoutingContext context) {
+  service.getAll().setHandler(resultHandler(context, res -> {
+    if (res == null) {
+      serviceUnavailable(context);
+    } else {
+      final String encoded = Json.encodePrettily(res);
+      context.response()
+        .putHeader("content-type", "application/json; charset=utf-8")
+        .end(encoded);
+    }
+  }));
+}
+
+private void handleUpdateTodo(RoutingContext context) {
+  try {
+    String todoID = context.request().getParam("todoId");
+    final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString());
+    // handle error
+    if (newTodo == null || todoID == null) {
+      sendError(400, context.response());
+      return;
+    }
+    service.update(todoID, newTodo)
+      .setHandler(resultHandler(context, res -> {
+        if (res == null)
+          notFound(context);
+        else {
+          final String encoded = Json.encodePrettily(res);
+          context.response()
+            .putHeader("content-type", "application/json; charset=utf-8")
+            .end(encoded);
+        }
+      }));
+  } catch (DecodeException e) {
+    badRequest(context);
+  }
+}
+
+private Handler<AsyncResult<Boolean>> deleteResultHandler(RoutingContext context) {
+  return res -> {
+    if (res.succeeded()) {
+      if (res.result()) {
+        context.response().setStatusCode(204).end();
+      } else {
+        serviceUnavailable(context);
+      }
+    } else {
+      serviceUnavailable(context);
+    }
+  };
+}
+
+private void handleDeleteOne(RoutingContext context) {
+  String todoID = context.request().getParam("todoId");
+  service.delete(todoID)
+    .setHandler(deleteResultHandler(context));
+}
+
+private void handleDeleteAll(RoutingContext context) {
+  service.deleteAll()
+    .setHandler(deleteResultHandler(context));
+}
+```
+
+是不是和之前的Verticle很相似呢？这里我们还封装了两个`Handler`生成器：`resultHandler` 和 `deleteResultHandler`。这两个生成器封装了一些重复的代码，可以减少代码量。
+
+嗯。。。我们的新Verticle实现好了，那么是时候去实现具体的业务逻辑了。这里我们会实现两个版本的业务逻辑，分别对应两种存储：Redis和MySQL。
+
+### Vert.x-Redis版本的待办事项服务
+
+之前我们已经实现过一遍Redis版本的服务了，因此你应该对其非常熟悉了。这里我们仅仅解释一个 `update` 方法，其它的实现都非常类似，代码可以在[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master)上浏览。
+
+#### 组合Future
+
+回想一下我们之前写的更新待办事项的逻辑，我们会发现它其实是由两个独立的操作组成 - `get` 和 `insert`（对于Redis来说）。所以呢，我们可不可以复用`getCertain` 和 `insert` 这两个方法？当然了！因为`Future`是可组合的，因此我们可以将这两个方法返回的`Future`组合到一起。是不是非常神奇呢？我们来编写此方法：
+
+[NOTE 提示 | 到目前为止，`Future`对象的`map`和`compose`函数只能在Vert.x 3.3.0版本使用，因此如果要使用这两个函数，你需要改变依赖：`compile "io.vertx:vertx-core:3.3.0-SNAPSHOT"`. ]
+
+```java
+@Override
+public Future<Todo> update(String todoId, Todo newTodo) {
+  return this.getCertain(todoId).compose(old -> { // (1)
+    if (old.isPresent()) {
+      Todo fnTodo = old.get().merge(newTodo);
+      return this.insert(fnTodo)
+        .map(r -> r ? fnTodo : null); (2)
+    } else {
+      return Future.succeededFuture(); (3)
+    }
+  });
+}
+```
+
+首先我们调用了`getCertain`方法，此方法返回一个`Future<Optional<Todo>>`对象。同时我们使用`compose`函数将此方法返回的`Future`与另一个`Future`进行组合（1），其中`compose`函数接受一个`T => Future<U>`类型的lambda。然后我们接着检查旧的待办事项是否存在，如果存在的话，我们将新的待办事项与旧的待办事项相融合，然后更新待办事项。注意到`insert`方法返回`Future<Boolean>`类型的`Future`，因此我们还需要对此Future的结果做变换，这个变换的过程是通过`map`函数实现的（2）。`map`函数接受一个`T => U`类型的lambda。如果旧的待办事项不存在，我们返回一个包含null的`Future`（3）。最后我们返回组合后的`Future`对象。
+
+[NOTE `Future` 的本质 | 在函数式编程中，`Future` 实际上是一种 `Monad`。有关`Monad`的理论较为复杂，这里不进行阐述。你可以把它看作是一个可以进行变换(`map`)和组合(`compose`)的包装对象。 ]
+
+完成啦～下面来实现MySQL版本的待办事项服务。
+
+### Vert.x-JDBC版本的待办事项服务
+
+#### JDBC ++ 异步
+
 ## 终
 
 ## 来自其它框架？

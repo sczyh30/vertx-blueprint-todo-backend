@@ -418,10 +418,10 @@ Then, as soon as we create a verticle instance, the redis client will be created
 
 #### Store format
 
-As Redis support various format of data, We store our todo objects in a *HashTable*.
-Every data in the hash table has key and value. Here we use `id` as key and todo entity in **JSON** format as value.
+As Redis support various format of data, We store our todo objects in a *Map*.
+Every data in the map has key and value. Here we use `id` as key and todo entity in **JSON** format as value.
 
-Recall, the hash table should have a name(key), so we name it as *VERT_TODO*. Let's add the following constant to the `Constants` class:
+Recall, the map should have a name(key), so we name it as *VERT_TODO*. Let's add the following constant to the `Constants` class:
 
 ```java
 public static final String REDIS_TODO_KEY = "VERT_TODO";
@@ -490,13 +490,13 @@ private void sendError(int statusCode, HttpServerResponse response) {
 
 The `end` method is of vital importance. The response could be sent to client only if we call this method.
 
-Back to the `handleGetTodo` method. If the parameter is okay, we could fetch the todo object by `todoId` from Redis. Here we use `hget` operation (3), which means get an entry by key from the hash table. Let's see the signature of `hget` method:
+Back to the `handleGetTodo` method. If the parameter is okay, we could fetch the todo object by `todoId` from Redis. Here we use `hget` operation (3), which means get an entry by key from the map. Let's see the signature of `hget` method:
 
 ```java
 RedisClient hget(String key, String field, Handler<AsyncResult<String>> handler);
 ```
 
-The first parameter `key` is the name(key) of the hash table. The second parameter `field` is the key of the data. The third parameter is a handler that handles the result when action has been done. In the handler, first we should check if the action is successful. If not, the server should send a `503 Service Unavailable` error response to the client. If done, we could get the result. If the result is `null`, that indicates there is no todo object matches the `todoId` so we should return `404 Not Found` status. If the result is valid, we could write it to response by `end` method (4). Notice our REST API returns JSON data, so we set `content-type` header as JSON type.
+The first parameter `key` is the name(key) of the map. The second parameter `field` is the key of the data. The third parameter is a handler that handles the result when action has been done. In the handler, first we should check if the action is successful. If not, the server should send a `503 Service Unavailable` error response to the client. If done, we could get the result. If the result is `null`, that indicates there is no todo object matches the `todoId` so we should return `404 Not Found` status. If the result is valid, we could write it to response by `end` method (4). Notice our REST API returns JSON data, so we set `content-type` header as JSON type.
 
 The logic of `handleGetAll` is similar to `handleGetTodo`, but the implementation has some difference:
 
@@ -557,7 +557,7 @@ private Todo wrapObject(Todo todo, RoutingContext context) {
 }
 ```
 
-And then we encode again to JSON string format using `Json.encodePrettily` method (2). Next we insert the todo entity into hash table with `hset` operator (3). If the action is successful, write response with status `201` (4).
+And then we encode again to JSON string format using `Json.encodePrettily` method (2). Next we insert the todo entity into map with `hset` operator (3). If the action is successful, write response with status `201` (4).
 
 [NOTE Status 201 ? | As you can see, we have set the response status to `201`. It means `CREATED`, and is the generally used in REST API that create an entity. By default Vert.x Web is setting the status to `200` meaning `OK`.]
 
@@ -610,7 +610,7 @@ So this is the update process. Be patient, we have almost done it~ Let's impleme
 
 #### Remove/Remove all
 
-The logic of removing todos is much more easier. We use `hdel` operator to delete one certain todo entity and `del` operator to delete the entire todo hash table. If the operation is successful, write response with `204 No Content` status.
+The logic of removing todos is much more easier. We use `hdel` operator to delete one certain todo entity and `del` operator to delete the entire todo map. If the operation is successful, write response with `204 No Content` status.
 
 Here are the code:
 

@@ -1,0 +1,17 @@
+version: "2"
+services:
+  redis:
+    container_name: vertx-todo-backend_redis
+    image: redis:latest
+    expose:
+      - "6379"
+
+  vertx-todo-backend:
+    depends_on:
+      - redis
+    container_name: vertx-todo-backend_service
+    build: .
+    links:
+      - redis
+    ports:
+      - "8082:8082"
