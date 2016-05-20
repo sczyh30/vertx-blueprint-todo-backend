@@ -37,22 +37,11 @@ public class TodoApiTest {
   @Before
   public void before(TestContext context) {
     vertx = Vertx.vertx();
-    final int port = Integer.getInteger("http.port", PORT);
     final DeploymentOptions options = new DeploymentOptions()
-      .setConfig(new JsonObject().put("http.port", port)
+      .setConfig(new JsonObject().put("http.port", 8082)
       );
-
-    RedisOptions config;
-    // this is for OpenShift Redis Cartridge
-    String osPort = System.getenv("OPENSHIFT_REDIS_PORT");
-    String osHost = System.getenv("OPENSHIFT_REDIS_HOST");
-    if (osPort != null && osHost != null)
-      config = new RedisOptions()
-        .setHost(osHost).setPort(Integer.parseInt(osPort));
-    else
-      config = new RedisOptions().setHost("127.0.0.1");
-
-    TodoVerticle verticle = new TodoVerticle(new RedisTodoService(config));
+    // default config
+    TodoVerticle verticle = new TodoVerticle();
 
     vertx.deployVerticle(verticle, options,
       context.asyncAssertSuccess());

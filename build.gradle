@@ -9,7 +9,7 @@ jar {
   manifest {
     //attributes 'Main-Class': 'io.vertx.blueprint.todolist.Application'
     attributes 'Main-Class': 'io.vertx.core.Launcher'
-    attributes 'Main-Verticle': 'io.vertx.blueprint.todolist.verticles.SingleApplicationVerticle'
+    attributes 'Main-Verticle': 'io.vertx.blueprint.todolist.verticles.TodoVerticle'
   }
 }
 
@@ -26,7 +26,7 @@ task annotationProcessing(type: JavaCompile, group: 'build') {
   options.compilerArgs = [
     "-proc:only",
     "-processor", "io.vertx.codegen.CodeGenProcessor",
-    "-AoutputDirectory=" + destinationDir.absolutePath
+    "-AoutputDirectory=${destinationDir.absolutePath}"
   ]
 }
 

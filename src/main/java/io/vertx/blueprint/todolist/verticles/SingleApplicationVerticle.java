@@ -6,7 +6,6 @@ import io.vertx.blueprint.todolist.entity.Todo;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
-import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.DecodeException;
@@ -30,8 +29,10 @@ import java.util.stream.Collectors;
  */
 public class SingleApplicationVerticle extends AbstractVerticle {
 
-  private static final String HOST = "127.0.0.1";
-  private static final int PORT = 8082;
+  private static final String HTTP_HOST = "0.0.0.0";
+  private static final String REDIS_HOST = "127.0.0.1";
+  private static final int HTTP_PORT = 8082;
+  private static final int REDIS_PORT = 6379;
 
   private RedisClient redis;
 
@@ -47,8 +48,9 @@ public class SingleApplicationVerticle extends AbstractVerticle {
       config = new RedisOptions()
         .setHost(osHost).setPort(Integer.parseInt(osPort));
     else
-      config = new RedisOptions().setHost(config().getString("redis.host", HOST));
-    //.setPort(config().getInteger("redis.port", 6379));
+      config = new RedisOptions()
+        .setHost(config().getString("redis.host", REDIS_HOST))
+        .setPort(config().getInteger("redis.port", REDIS_PORT));
 
     this.redis = RedisClient.create(vertx, config);
 
@@ -95,8 +97,8 @@ public class SingleApplicationVerticle extends AbstractVerticle {
 
     vertx.createHttpServer()
       .requestHandler(router::accept)
-      .listen(config().getInteger("http.port", PORT),
-        config().getString("http.address", HOST), result -> {
+      .listen(config().getInteger("http.port", HTTP_PORT),
+        config().getString("http.address", HTTP_HOST), result -> {
           if (result.succeeded())
             future.complete();
           else

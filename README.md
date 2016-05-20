@@ -12,16 +12,20 @@ Detailed documents(both in Chinese and English) are provided below.
 - [English Version](docs/doc-en.md)
 - [中文文档](docs/doc-zh-cn.md)
 
-## Building
+## Build
 
 To build the code:
 
     gradle build
+    
+Run service locally:
+    
+- with Redis: `java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config.json`
+- with MySQL: `java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config_jdbc.json`
 
-To build and run with Docker:
+Run with Docker Compose:
 
-    gradle build
-    docker build -t sczyh30/vert-todo-backend .
+    docker-compose up --build
 
 ## OpenShift
 

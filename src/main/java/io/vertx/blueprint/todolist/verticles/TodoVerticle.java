@@ -2,6 +2,8 @@ package io.vertx.blueprint.todolist.verticles;
 
 import io.vertx.blueprint.todolist.Constants;
 import io.vertx.blueprint.todolist.entity.Todo;
+import io.vertx.blueprint.todolist.service.JdbcTodoService;
+import io.vertx.blueprint.todolist.service.RedisTodoService;
 import io.vertx.blueprint.todolist.service.TodoService;
 
 import io.vertx.core.AbstractVerticle;
@@ -16,6 +18,7 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
+import io.vertx.redis.RedisOptions;
 
 import java.util.HashSet;
 import java.util.Random;
@@ -30,16 +33,26 @@ import java.util.function.Consumer;
  */
 public class TodoVerticle extends AbstractVerticle {
 
-  private static final String HOST = "127.0.0.1";
+  private static final String HOST = "0.0.0.0";
   private static final int PORT = 8082;
 
-  private final TodoService service;
-
-  public TodoVerticle(TodoService service) {
-    this.service = service;
-  }
+  private TodoService service;
 
   private void initData() {
+    final String serviceType = config().getString("service.type", "redis");
+    System.out.println("[INFO]Service Type: " + serviceType);
+    switch (serviceType) {
+      case "redis":
+        RedisOptions config = new RedisOptions()
+          .setHost(config().getString("redis.host", "127.0.0.1"))
+          .setPort(config().getInteger("redis.port", 6379));
+        service = new RedisTodoService(vertx, config);
+        break;
+      case "jdbc":
+        service = new JdbcTodoService(vertx, config());
+        break;
+    }
+
     service.initData().setHandler(res -> {
         if (res.failed()) {
           System.err.println("[Error] Persistence service is not running!");
@@ -50,6 +63,8 @@ public class TodoVerticle extends AbstractVerticle {
 
   @Override
   public void start(Future<Void> future) throws Exception {
+    initData();
+
     Router router = Router.router(vertx);
     // CORS support
     Set<String> allowHeaders = new HashSet<>();
@@ -86,8 +101,6 @@ public class TodoVerticle extends AbstractVerticle {
           else
             future.fail(result.cause());
         });
-
-    initData();
   }
 
   /**

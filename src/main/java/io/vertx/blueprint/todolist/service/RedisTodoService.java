@@ -25,12 +25,12 @@ public class RedisTodoService implements TodoService {
   private final RedisOptions config;
   private final RedisClient redis;
 
-  public RedisTodoService() {
-    this(new RedisOptions());
+  public RedisTodoService(RedisOptions config) {
+    this(Vertx.vertx(), config);
   }
 
-  public RedisTodoService(RedisOptions config) {
-    this.vertx = Vertx.vertx();
+  public RedisTodoService(Vertx vertx, RedisOptions config) {
+    this.vertx = vertx;
     this.config = config;
     this.redis = RedisClient.create(vertx, config);
   }

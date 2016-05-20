@@ -8,8 +8,8 @@ ENV VERTICLE_HOME /usr/verticles
 EXPOSE 8082
 
 COPY $VERTICLE_FILE $VERTICLE_HOME/
-# COPY config.json $VERTICLE_HOME/
+COPY config/config_docker.json $VERTICLE_HOME/
 
 WORKDIR $VERTICLE_HOME
 ENTRYPOINT ["sh", "-c"]
-CMD ["java -jar vertx-blueprint-todo-backend-fat.jar"]
+CMD ["java -jar vertx-blueprint-todo-backend-fat.jar -conf config_docker.json"]

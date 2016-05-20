@@ -50,7 +50,11 @@ public class JdbcTodoService implements TodoService {
   private static final String SQL_DELETE_ALL = "DELETE FROM `todo`";
 
   public JdbcTodoService(JsonObject config) {
-    this.vertx = Vertx.vertx();
+    this(Vertx.vertx(), config);
+  }
+
+  public JdbcTodoService(Vertx vertx, JsonObject config) {
+    this.vertx = vertx;
     this.config = config;
     this.client = JDBCClient.createShared(vertx, config);
   }
