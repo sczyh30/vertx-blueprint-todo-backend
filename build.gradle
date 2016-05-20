@@ -7,7 +7,6 @@ jar {
   baseName = 'vertx-blueprint-todo-backend-fat'
   from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
   manifest {
-    //attributes 'Main-Class': 'io.vertx.blueprint.todolist.Application'
     attributes 'Main-Class': 'io.vertx.core.Launcher'
     attributes 'Main-Verticle': 'io.vertx.blueprint.todolist.verticles.TodoVerticle'
   }

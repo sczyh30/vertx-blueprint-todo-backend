@@ -38,7 +38,7 @@ public class TodoApiTest {
   public void before(TestContext context) {
     vertx = Vertx.vertx();
     final DeploymentOptions options = new DeploymentOptions()
-      .setConfig(new JsonObject().put("http.port", 8082)
+      .setConfig(new JsonObject().put("http.port", PORT)
       );
     // default config
     TodoVerticle verticle = new TodoVerticle();

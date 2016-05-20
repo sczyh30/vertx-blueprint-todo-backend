@@ -64,6 +64,14 @@ public class Todo {
     this.id = acc.incrementAndGet();
   }
 
+  public static int getIncId() {
+    return acc.get();
+  }
+
+  public static void setIncIdWith(int n) {
+    acc.set(n);
+  }
+
   public String getTitle() {
     return title;
   }

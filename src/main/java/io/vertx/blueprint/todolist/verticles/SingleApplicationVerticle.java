@@ -225,7 +225,10 @@ public class SingleApplicationVerticle extends AbstractVerticle {
    * @return the wrapped todo entity
    */
   private Todo wrapObject(Todo todo, RoutingContext context) {
-    if (todo.getId() == 0)
+    int id = todo.getId();
+    if (id > Todo.getIncId()) {
+      Todo.setIncIdWith(id);
+    } else if (id == 0)
       todo.setIncId();
     todo.setUrl(context.request().absoluteURI() + "/" + todo.getId());
     return todo;

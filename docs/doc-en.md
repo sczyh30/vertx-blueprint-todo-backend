@@ -20,8 +20,7 @@
         - [Create Todo](#create-todo)
         - [Update](#update)
         - [Remove/Remove all](#removeremove-all)
-    - [Launcher Class](#launcher-class)
-    - [Package](#package)
+    - [Package with Vert.x Launcher](#package-with-vertx-launcher)
     - [Run our service](#run-our-service)
 - [Decouple controller and service](#decouple-controller-and-service)
     - [Asynchronous service using Future](#asynchronous-service-using-future)
@@ -125,6 +124,7 @@ dependencies {
   compile "io.vertx:vertx-core:3.2.1"
   compile 'io.vertx:vertx-web:3.2.1'
 
+  testCompile 'io.vertx:vertx-unit:3.2.1'
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 ```
@@ -143,8 +143,16 @@ First we need to create our data object - the `Todo` entity. Create the `src/mai
 ```Java
 package io.vertx.blueprint.todolist.entity;
 
+import io.vertx.codegen.annotations.DataObject;
+import io.vertx.core.json.JsonObject;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
+
+@DataObject(generateConverter = true)
 public class Todo {
+
+  private static final AtomicInteger acc = new AtomicInteger(0); // counter
 
   private int id;
   private String title;
@@ -155,6 +163,22 @@ public class Todo {
   public Todo() {
   }
 
+  public Todo(Todo other) {
+    this.id = other.id;
+    this.title = other.title;
+    this.completed = other.completed;
+    this.order = other.order;
+    this.url = other.url;
+  }
+
+  public Todo(JsonObject obj) {
+    TodoConverter.fromJson(obj, this);
+  }
+
+  public Todo(String jsonStr) {
+    TodoConverter.fromJson(new JsonObject(jsonStr), this);
+  }
+
   public Todo(int id, String title, Boolean completed, Integer order, String url) {
     this.id = id;
     this.title = title;
@@ -163,12 +187,30 @@ public class Todo {
     this.url = url;
   }
 
+  public JsonObject toJson() {
+    JsonObject json = new JsonObject();
+    TodoConverter.toJson(this, json);
+    return json;
+  }
+
   public int getId() {
     return id;
   }
 
   public void setId(int id) {
     this.id = id;
+  }
+
+  public void setIncId() {
+    this.id = acc.incrementAndGet();
+  }
+
+  public static int getIncId() {
+    return acc.get();
+  }
+
+  public static void setIncIdWith(int n) {
+    acc.set(n);
   }
 
   public String getTitle() {
@@ -203,6 +245,39 @@ public class Todo {
     this.url = url;
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    Todo todo = (Todo) o;
+
+    if (id != todo.id) return false;
+    if (!title.equals(todo.title)) return false;
+    if (completed != null ? !completed.equals(todo.completed) : todo.completed != null) return false;
+    return order != null ? order.equals(todo.order) : todo.order == null;
+
+  }
+
+  @Override
+  public int hashCode() {
+    int result = id;
+    result = 31 * result + title.hashCode();
+    result = 31 * result + (completed != null ? completed.hashCode() : 0);
+    result = 31 * result + (order != null ? order.hashCode() : 0);
+    return result;
+  }
+
+  @Override
+  public String toString() {
+    return "Todo -> {" +
+      "id=" + id +
+      ", title='" + title + '\'' +
+      ", completed=" + completed +
+      ", order=" + order +
+      ", url='" + url + '\'' +
+      '}';
+  }
 
   private <T> T getOrElse(T value, T defaultValue) {
     return value == null ? defaultValue : value;
@@ -220,6 +295,56 @@ public class Todo {
 
 Our `Todo` entity consists of id, title, order, url and a flag indicates if it is completed. This is a simple Java bean and could be marshaled to JSON format.
 
+Here we make use of *Vert.x Codegen* to automatically generate JSON converter. To use Vert.x Codegen, we need add a dependency:
+
+```gradle
+compile 'io.vertx:vertx-codegen:3.2.1'
+```
+
+And we need a `package-info.java` file in the package in order to instruct Vert.x Codegen to generate code:
+
+```java
+/**
+ * Indicates that this module contains classes that need to be generated / processed.
+ */
+@ModuleGen(name = "vertx-blueprint-todo-entity", groupPackage = "io.vertx.blueprint.todolist.entity")
+package io.vertx.blueprint.todolist.entity;
+
+import io.vertx.codegen.annotations.ModuleGen;
+```
+
+In fact Vert.x Codegen resembles a annotation processing tool(apt), so we should set up apt in `build.gradle`. Add the following content to `build.gradle`:
+
+```gradle
+task annotationProcessing(type: JavaCompile, group: 'build') {
+  source = sourceSets.main.java
+  classpath = configurations.compile
+  destinationDir = project.file('src/main/generated')
+  options.compilerArgs = [
+    "-proc:only",
+    "-processor", "io.vertx.codegen.CodeGenProcessor",
+    "-AoutputDirectory=${destinationDir.absolutePath}"
+  ]
+}
+
+sourceSets {
+  main {
+    java {
+      srcDirs += 'src/main/generated'
+    }
+  }
+}
+
+compileJava {
+  targetCompatibility = 1.8
+  sourceCompatibility = 1.8
+
+  dependsOn annotationProcessing
+}
+```
+
+Then every time we compile our code, the Vert.x Codegen will automatically generate a converter class for class with `@DataObject` annotation. Here, you will get a class `TodoConverter` and you can use it in `Todo` data object.
+
 ### Verticle
 
 Then we start writing our verticle. Create the `src/main/java/io/vertx/blueprint/todolist/verticles/SingleApplicationVerticle.java ` file and write following content:
@@ -234,14 +359,12 @@ import io.vertx.redis.RedisOptions;
 
 public class SingleApplicationVerticle extends AbstractVerticle {
 
-  private static final String HOST = "127.0.0.1";
-  private static final int PORT = 8082;
+  private static final String HTTP_HOST = "0.0.0.0";
+  private static final String REDIS_HOST = "127.0.0.1";
+  private static final int HTTP_PORT = 8082;
+  private static final int REDIS_PORT = 6379;
 
-  private final RedisClient redis;
-
-  public SingleApplicationVerticle(RedisOptions redisOptions) {
-    this.redis = RedisClient.create(Vertx.vertx(), redisOptions);
-  }
+  private RedisClient redis;
 
   @Override
   public void start(Future<Void> future) throws Exception {
@@ -265,6 +388,7 @@ Let's change the `start` method with:
 ```java
 @Override
 public void start(Future<Void> future) throws Exception {
+  initData();
 
   Router router = Router.router(vertx); // <1>
   // CORS support
@@ -402,19 +526,28 @@ Vert.x-redis allows data to be saved, retrieved, searched for, and deleted in a 
 compile 'io.vertx:vertx-redis-client:3.2.1'
 ```
 
-We can access to Redis by `RedisClient` object. So we define a `RedisClient` object as a class object. Before we use `RedisClient`, we should connect to Redis and there is a config required. This config is provided in the form of `RedisOptions`. We will discuss the values of config later.
-
-Add the following code to the `SingleApplicationVerticle` class:
+We can access to Redis by `RedisClient` object. So we define a `RedisClient` object as a class object. Before we use `RedisClient`, we should connect to Redis and there is a config required. This config is provided in the form of `RedisOptions`. Let's implement `initData` method to init the `RedisClient` and test the connection:
 
 ```java
-private final RedisClient redis;
+private void initData() {
+  RedisOptions config = new RedisOptions()
+      .setHost(config().getString("redis.host", REDIS_HOST))
+      .setPort(config().getInteger("redis.port", REDIS_PORT));
 
-public SingleApplicationVerticle(RedisOptions redisOptions) {
-  this.redis = RedisClient.create(Vertx.vertx(), redisOptions);
+  this.redis = RedisClient.create(vertx, config); // create redis client
+
+  redis.hset(Constants.REDIS_TODO_KEY, "24", Json.encodePrettily( // test connection
+    new Todo(24, "Something to do...", false, 1, "todo/ex")), res -> {
+    if (res.failed()) {
+      System.err.println("[Error] Redis service is not running!");
+      res.cause().printStackTrace();
+    }
+  });
+
 }
 ```
 
-Then, as soon as we create a verticle instance, the redis client will be created.
+When we initialize the verticle, we first invoke `initData` method so that the redis client could be created.
 
 #### Store format
 
@@ -427,31 +560,7 @@ Recall, the map should have a name(key), so we name it as *VERT_TODO*. Let's add
 public static final String REDIS_TODO_KEY = "VERT_TODO";
 ```
 
-Vert.x provides several methods to encode objects to JSON format (`JsonObject`) and decode JSON to a certain entity. Here we create an `Utils` class in `io.vertx.blueprint.todolist` root package and wrap a `getTodoFromJson` method:
-
-```java
-package io.vertx.blueprint.todolist;
-
-import io.vertx.blueprint.todolist.entity.Todo;
-import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonObject;
-
-
-public class Utils {
-
-  private Utils() {}
-
-  public static Todo getTodoFromJson(String jsonStr) {
-    if (jsonStr == null)
-      return null;
-    else
-      return Json.decodeValue(jsonStr, Todo.class);
-  }
-
-}
-```
-
-This method could resolve todo entity from JSON string. It's convenient as the todo entities we retrieve from Redis is in JSON string format.
+As we mentioned above, we have implemented method(or constructor) that converts between `Todo` entity and `JsonObject` with the help of generated `TodoConverter` class. Thus, we could make use of them in the following code.
 
 #### Get/Get all
 
@@ -470,7 +579,7 @@ private void handleGetTodo(RoutingContext context) {
           sendError(404, context.response());
         else {
           context.response()
-            .putHeader("content-type", "application/json; charset=utf-8")
+            .putHeader("content-type", "application/json")
             .end(result); // (4)
         }
       } else
@@ -505,10 +614,10 @@ private void handleGetAll(RoutingContext context) {
   redis.hvals(Constants.REDIS_TODO_KEY, res -> { // (1)
     if (res.succeeded()) {
       String encoded = Json.encodePrettily(res.result().stream() // (2)
-        .map(x -> Utils.getTodoFromJson((String) x))
+        .map(x -> new Todo((String) x))
         .collect(Collectors.toList()));
       context.response()
-        .putHeader("content-type", "application/json; charset=utf-8")
+        .putHeader("content-type", "application/json")
         .end(encoded); // (3)
     } else
       sendError(503, context.response());
@@ -518,7 +627,7 @@ private void handleGetAll(RoutingContext context) {
 
 Here we use `hvals` operation (1). `hvals` returns all values in the hash stored at key. In Vert.x-redis, it returns data as a `JsonArray` object. In the handler we first check whether the action is successful as before. If okay, we could write the result to response. Notice that we cannot directly write the returning `JsonArray` to the response as each value in `JsonArray` we retrieved from Redis was escaped so some characters are not correct. So we should first convert them into todo entity and then re-encode them to JSON.
 
-Here we use an approach with functional style. Because the `JsonArray` class implements `Iterable<Object>` interface (behave like `List` yeah?), we could convert it to `Stream` using `stream` method. The `Stream` here is not the IO stream, but data flow. Then we call `Utils.getTodoFromJson` method on every item to convert every value(in string format) to `Todo` entity, using `map` operator. We don't explain `map` operator in detail but, it's really important in functional programming. After mapping, we collect the `Stream` in the form of `List<Todo>`. Now we could use `Json.encodePrettily` method to convert the list to JSON string. Finally we write the encoded result to response as before (3).
+Here we use an approach with functional style. Because the `JsonArray` class implements `Iterable<Object>` interface (behave like `List` yeah?), we could convert it to `Stream` using `stream` method. The `Stream` here is not the IO stream, but data flow. Then we transform every value(in string format) to `Todo` entity, with the help of `map` operator. We don't explain `map` operator in detail but, it's really important in functional programming. After mapping, we collect the `Stream` in the form of `List<Todo>`. Now we could use `Json.encodePrettily` method to convert the list to JSON string. Finally we write the encoded result to response as before (3).
 
 #### Create Todo
 
@@ -527,8 +636,7 @@ After having done two APIs above, you are more familiar with Vert.x~ Now let's i
 ```java
 private void handleCreateTodo(RoutingContext context) {
   try {
-    final Todo todo = wrapObject(Utils.getTodoFromJson
-      (context.getBodyAsString()), context);
+    final Todo todo = wrapObject(new Todo(context.getBodyAsString()), context);
     final String encoded = Json.encodePrettily(todo);
     redis.hset(Constants.REDIS_TODO_KEY, String.valueOf(todo.getId()),
       encoded, res -> {
@@ -546,16 +654,21 @@ private void handleCreateTodo(RoutingContext context) {
 }
 ```
 
-First we use `context.getBodyAsString()` to retrieve JSON data from the request body and decode JSON data to todo entity using `Utils.getTodoFromJson` method (1). Here we implement a `wrapObject` method that give corresponding url and random id(if no id) to the todo entity:
+First we use `context.getBodyAsString()` to retrieve JSON data from the request body and decode JSON data to todo entity with the specific constructor (1). Here we implement a `wrapObject` method that give corresponding url and incremental id(if no id) to the todo data object:
 
 ```java
 private Todo wrapObject(Todo todo, RoutingContext context) {
-  if (todo.getId() == 0)
-    todo.setId(Math.abs(new Random().nextInt()));
+  int id = todo.getId();
+  if (id > Todo.getIncId()) {
+    Todo.setIncIdWith(id);
+  } else if (id == 0)
+    todo.setIncId();
   todo.setUrl(context.request().absoluteURI() + "/" + todo.getId());
   return todo;
 }
 ```
+
+This `wrapObject` method is of vital importance as the id of todos could not be duplicate. Here we use a mechanism like incremental integer.
 
 And then we encode again to JSON string format using `Json.encodePrettily` method (2). Next we insert the todo entity into map with `hset` operator (3). If the action is successful, write response with status `201` (4).
 
@@ -572,7 +685,7 @@ Well, if you want to change your plan, you may need to update the todo entity. L
 private void handleUpdateTodo(RoutingContext context) {
   try {
     String todoID = context.request().getParam("todoId"); // (1)
-    final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString()); // (2)
+    final Todo newTodo = new Todo(context.getBodyAsString()); // (2)
     // handle error
     if (todoID == null || newTodo == null) {
       sendError(400, context.response());
@@ -585,12 +698,12 @@ private void handleUpdateTodo(RoutingContext context) {
         if (result == null)
           sendError(404, context.response()); // (4)
         else {
-          Todo oldTodo = Utils.getTodoFromJson(result);
+          Todo oldTodo = new Todo(result);
           String response = Json.encodePrettily(oldTodo.merge(newTodo)); // (5)
           redis.hset(Constants.REDIS_TODO_KEY, todoID, response, res -> { // (6)
             if (res.succeeded()) {
               context.response()
-                .putHeader("content-type", "application/json; charset=utf-8")
+                .putHeader("content-type", "application/json")
                 .end(response); // (7)
             }
           });
@@ -637,55 +750,27 @@ private void handleDeleteAll(RoutingContext context) {
 
 [NOTE Status 204 ? | As you can see, we have set the response status to `204 - NO CONTENT`. Response to the HTTP method `delete` have generally no content.]
 
-Wow! Our todo verticle is completed! Excited! But how to run our verticle? We need to *deploy* it. So we need to implement a launcher class.
+Wow! Our todo verticle is completed! Excited! But how to run our verticle? We need to *deploy* it. Fortunately, Vert.x provides us a launcher class - Vert.x Launcher, which could help deploy verticles and set configurations.
 
-### Launcher Class
+### Package with Vert.x Launcher
 
-Let's create `Application` class in `io.vertx.blueprint.todolist` root package and write the following code:
+To build a jar package with Vert.x Launcher, add the following content to the `build.gradle` file:
 
-```java
-package io.vertx.blueprint.todolist;
-
-import io.vertx.blueprint.todolist.verticles.SingleApplicationVerticle;
-import io.vertx.core.Verticle;
-import io.vertx.core.Vertx;
-import io.vertx.redis.RedisOptions;
-
-
-public class Application {
-
-  public static void main(String[] args) {
-    Vertx vertx = Vertx.vertx(); // (1)
-    RedisOptions config = new RedisOptions().setHost("127.0.0.1"); // (2)
-    Verticle todoVerticle = new SingleApplicationVerticle(config); // (3)
-    vertx.deployVerticle(todoVerticle, res -> { // (4)
-      if (res.succeeded())
-        System.out.println("Todo service is running at 8082 port...");
-      else
-        res.cause().printStackTrace();
-    });
-  }
-}
-```
-
-First we get the `Vertx` instance (1); Then we create a `RedisOptions` object (2), which refers to the config of Vert.x-Redis. Next we created one todo verticle instance (3). Finally, we deploy our verticle using `vertx.deployVerticle` method (4). When the deployment is done, our service will be running!
-
-### Package
-
-To build a jar package, add the following content to the `build.gradle` file:
-
-```groovy
+```gradle
 jar {
   // by default fat jar
   baseName = 'vertx-blueprint-todo-backend-fat'
   from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
   manifest {
-    attributes 'Main-Class': 'io.vertx.blueprint.todolist.Application'
+      attributes 'Main-Class': 'io.vertx.core.Launcher'
+      attributes 'Main-Verticle': 'io.vertx.blueprint.todolist.verticles.SingleApplicationVerticle'
   }
 }
 ```
 
 - In the `jar` field, we configure it to generate **fat-jar** when compiles and point out the launcher class. A *fat-jar* is a convenient way to package a Vert.x application. It creates a jar containing both your application and all dependencies. Then, to launch it, you just need to execute `java -jar xxx.jar` without having to handle the `CLASSPATH`.
+
+We set `Main-Class` attribute with `io.vertx.core.Launcher` so that we could make use of Vert.x Launcher to deploy verticle.
 
 ### Run our service
 
@@ -702,7 +787,7 @@ gradle build
 java -jar build/libs/vertx-blueprint-todo-backend-fat.jar
 ```
 
-If there are no problems, you will see *Todo service is running at 8082 port...*. The most convenient way to test our todo REST APIs is to use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec).
+If there are no problems, you will see *Succeeded in deploying verticle*. The most convenient way to test our todo REST APIs is to use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec).
 
 Input `http://127.0.0.1:8082/todos`:
 
@@ -812,7 +897,7 @@ import java.util.function.Consumer;
 
 public class TodoVerticle extends AbstractVerticle {
 
-  private static final String HOST = "127.0.0.1";
+  private static final String HOST = "0.0.0.0";
   private static final int PORT = 8082;
 
   private final TodoService service;
