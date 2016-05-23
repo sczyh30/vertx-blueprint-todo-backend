@@ -759,7 +759,7 @@ To build a jar package with Vert.x Launcher, add the following content to the `b
 ```gradle
 jar {
   // by default fat jar
-  baseName = 'vertx-blueprint-todo-backend-fat'
+  archiveName = 'vertx-blueprint-todo-backend-fat'
   from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
   manifest {
       attributes 'Main-Class': 'io.vertx.core.Launcher'
@@ -787,7 +787,7 @@ gradle build
 java -jar build/libs/vertx-blueprint-todo-backend-fat.jar
 ```
 
-If there are no problems, you will see *Succeeded in deploying verticle*. The most convenient way to test our todo REST APIs is to use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec).
+If there are no problems, you will see `Succeeded in deploying verticle`. The most convenient way to test our todo REST APIs is to use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec).
 
 Input `http://127.0.0.1:8082/todos`:
 
@@ -873,7 +873,6 @@ We create a new verticle to implement that. Create the `src/main/java/io/vertx/b
 package io.vertx.blueprint.todolist.verticles;
 
 import io.vertx.blueprint.todolist.Constants;
-import io.vertx.blueprint.todolist.Utils;
 import io.vertx.blueprint.todolist.entity.Todo;
 import io.vertx.blueprint.todolist.service.TodoService;
 
@@ -900,11 +899,7 @@ public class TodoVerticle extends AbstractVerticle {
   private static final String HOST = "0.0.0.0";
   private static final int PORT = 8082;
 
-  private final TodoService service;
-
-  public TodoVerticle(TodoService service) {
-    this.service = service;
-  }
+  private TodoService service;
 
   private void initData() {
     // TODO
@@ -992,8 +987,11 @@ public class TodoVerticle extends AbstractVerticle {
   }
 
   private Todo wrapObject(Todo todo, RoutingContext context) {
-    if (todo.getId() == 0)
-      todo.setId(Math.abs(new Random().nextInt()));
+    int id = todo.getId();
+    if (id > Todo.getIncId()) {
+      Todo.setIncIdWith(id);
+    } else if (id == 0)
+      todo.setIncId();
     todo.setUrl(context.request().absoluteURI() + "/" + todo.getId());
     return todo;
   }
@@ -1002,18 +1000,34 @@ public class TodoVerticle extends AbstractVerticle {
 
 So familiar yeah? The main structure of the verticle doesn't vary very much. Now let's write each route handlers using our service interface.
 
-First is `initData` method, which is used to init persistence. Code:
+First is `initData` method, which is used to init service and persistence. Code:
 
 ```java
-private void initData() {
-  service.initData().setHandler(res -> {
-      if (res.failed()) {
-        System.err.println("[Error] Persistence service is not running!");
-        res.cause().printStackTrace();
-      }
-    });
-}
+  private void initData() {
+    final String serviceType = config().getString("service.type", "redis");
+    System.out.println("[INFO]Service Type: " + serviceType);
+    switch (serviceType) {
+      case "redis":
+        RedisOptions config = new RedisOptions()
+          .setHost(config().getString("redis.host", "127.0.0.1"))
+          .setPort(config().getInteger("redis.port", 6379));
+        service = new RedisTodoService(vertx, config);
+        break;
+      case "jdbc":
+        service = new JdbcTodoService(vertx, config());
+        break;
+    }
+
+    service.initData().setHandler(res -> {
+        if (res.failed()) {
+          System.err.println("[Error] Persistence service is not running!");
+          res.cause().printStackTrace();
+        }
+      });
+  }
 ```
+
+
 
 We attach a handler on the `Future` returned by `service.initData()`. The handler will be called once the future is assigned or failed. Once the initialization action fails, our service will print error info on the console.
 
@@ -1035,15 +1049,14 @@ private <T> Handler<AsyncResult<T>> resultHandler(RoutingContext context, Consum
 
 private void handleCreateTodo(RoutingContext context) {
   try {
-    final Todo todo = wrapObject(Utils.getTodoFromJson
-      (context.getBodyAsString()), context);
+    final Todo todo = wrapObject(new Todo(context.getBodyAsString()), context);
     final String encoded = Json.encodePrettily(todo);
 
     service.insert(todo).setHandler(resultHandler(context, res -> {
       if (res) {
         context.response()
           .setStatusCode(201)
-          .putHeader("content-type", "application/json; charset=utf-8")
+          .putHeader("content-type", "application/json")
           .end(encoded);
       } else {
         serviceUnavailable(context);
@@ -1067,7 +1080,7 @@ private void handleGetTodo(RoutingContext context) {
     else {
       final String encoded = Json.encodePrettily(res.get());
       context.response()
-        .putHeader("content-type", "application/json; charset=utf-8")
+        .putHeader("content-type", "application/json")
         .end(encoded);
     }
   }));
@@ -1080,7 +1093,7 @@ private void handleGetAll(RoutingContext context) {
     } else {
       final String encoded = Json.encodePrettily(res);
       context.response()
-        .putHeader("content-type", "application/json; charset=utf-8")
+        .putHeader("content-type", "application/json")
         .end(encoded);
     }
   }));
@@ -1089,9 +1102,9 @@ private void handleGetAll(RoutingContext context) {
 private void handleUpdateTodo(RoutingContext context) {
   try {
     String todoID = context.request().getParam("todoId");
-    final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString());
+    final Todo newTodo = new Todo(context.getBodyAsString());
     // handle error
-    if (newTodo == null || todoID == null) {
+    if (todoID == null) {
       sendError(400, context.response());
       return;
     }
@@ -1102,7 +1115,7 @@ private void handleUpdateTodo(RoutingContext context) {
         else {
           final String encoded = Json.encodePrettily(res);
           context.response()
-            .putHeader("content-type", "application/json; charset=utf-8")
+            .putHeader("content-type", "application/json")
             .end(encoded);
         }
       }));
@@ -1149,7 +1162,7 @@ Since you have implemented single version verticle with Redis just now, you are 
 
 Recall the logic of *update* we wrote, we will discover that this is a composite of two actions - *get* and *insert*. So can we make use of existing `getCertain` and `insert` method? Of course! Because `Future` is composable. You can compose two or more futures. Sounds wonderful! Let's write:
 
-[NOTE Notice | The method `map` and `compose` is only available in Vert.x 3.3.0+, so you are supposed to change the dependency with `compile "io.vertx:vertx-core:3.3.0-SNAPSHOT"`. ]
+[NOTE Notice | The method `map` and `compose` is only available in Vert.x 3.3.0+, so you are supposed to change the dependency with `compile "io.vertx:vertx-core:3.3.0-SNAPSHOT"`. And add the maven repo `https://oss.sonatype.org/content/repositories/snapshots` to the `repositories` field. ]
 
 ```java
 @Override
@@ -1214,7 +1227,6 @@ Create `JdbcTodoService` class in `io.vertx.blueprint.todolist.service` package 
 ```java
 package io.vertx.blueprint.todolist.service;
 
-import io.vertx.blueprint.todolist.Utils;
 import io.vertx.blueprint.todolist.entity.Todo;
 
 import io.vertx.core.Future;
@@ -1355,7 +1367,7 @@ public Future<Boolean> initData() {
 
 This method create the `todo` table if it doesn't exist. Don't forget to close the connection.
 
-[NOTE Closing connection| Don't forget to close the SQL connection when you are done. The connection will be given back to the connection pool and be reused.]
+[NOTE Closing connection | Don't forget to close the SQL connection when you are done. The connection will be given back to the connection pool and be reused.]
 
 Now let's implement `insert` method:
 
@@ -1398,7 +1410,7 @@ public Future<Optional<Todo>> getCertain(String todoID) {
         if (list == null || list.isEmpty()) {
           result.complete(Optional.empty());
         } else {
-          result.complete(Optional.of(Utils.getTodoFromJson(list.get(0).encode())));
+          result.complete(Optional.of(new Todo(list.get(0))));
         }
       }
       connection.close();
@@ -1410,65 +1422,11 @@ public Future<Optional<Todo>> getCertain(String todoID) {
 
 Here after the statement having been executed, we got a `ResultSet` instance, which represents the results of a query. The list of column names are available with `getColumnNames`, and the actual results available with `getResults`. Here  retrieve the rows as a list of Json object instances with `getRows` method.
 
-The `getAll`, `update`, `delete` and `deleteAll` methods follow the same pattern. You can look up the code on GitHub.
+The `getAll`, `update`, `delete` and `deleteAll` methods follow the same pattern. You can look up the code on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/src/main/java/io/vertx/blueprint/todolist/service/JdbcTodoService.java).
 
 ### Run!
 
-Now we have to refactor our `Application` class to run this two kinds of service. Change the `Application` class with:
-
-```java
-package io.vertx.blueprint.todolist;
-
-import io.vertx.blueprint.todolist.service.JdbcTodoService;
-import io.vertx.blueprint.todolist.service.RedisTodoService;
-import io.vertx.blueprint.todolist.verticles.SingleApplicationVerticle;
-import io.vertx.blueprint.todolist.verticles.TodoVerticle;
-import io.vertx.core.DeploymentOptions;
-import io.vertx.core.Verticle;
-import io.vertx.core.Vertx;
-import io.vertx.core.json.JsonObject;
-import io.vertx.redis.RedisOptions;
-
-
-public class Application {
-
-  public static Verticle RedisTodo() {
-    RedisOptions config = new RedisOptions().setHost("127.0.0.1");
-    return new TodoVerticle(new RedisTodoService(config));
-  }
-
-  public static Verticle JdbcTodo() {
-    // in this example we use MySQL
-    JsonObject config = new JsonObject()
-      .put("url", "jdbc:mysql://localhost/vertx_blueprint?characterEncoding=UTF-8&useSSL=false")
-      .put("driver_class", "com.mysql.cj.jdbc.Driver")
-      .put("user", "vbpdb1")
-      .put("password", "666666*")
-      .put("max_pool_size", 30);
-    return new TodoVerticle(new JdbcTodoService(config));
-  }
-
-  public static void runTodo(Verticle todoVerticle) {
-    Vertx vertx = Vertx.vertx();
-
-    final int port = Integer.getInteger("http.port", 8082);
-    DeploymentOptions options = new DeploymentOptions()
-      .setConfig(new JsonObject().put("http.port", port)
-      );
-
-    vertx.deployVerticle(todoVerticle, options, res -> {
-      if (res.succeeded())
-        System.out.println("Todo service is running at " + port + " port...");
-      else
-        res.cause().printStackTrace();
-    });
-  }
-
-  public static void main(String[] args) {
-    runTodo(JdbcTodo());
-  }
-}
-```
+TODO: change contents
 
 You need to replace JDBC `url`, `user` and `password` by your own.
 
@@ -1483,7 +1441,7 @@ We could use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-
 
 ## Cheers!
 
-Congratulations, you have finished the todo backend service~ In this long tutorial, you have learned the usage of `Vert.x Web`, `Vert.x Redis` and `Vert.x JDBC`, and most importantly, the asynchronous development model of Vert.x.
+Congratulations, you have finished the todo backend service~ In this long tutorial, you have learned the usage of `Vert.x Web`, `Vert.x Redis` and `Vert.x JDBC`, and most importantly, the **asynchronous development model** of Vert.x.
 
 To learn more about Vert.x, you can visit [Blog on Vert.x Website](http://vertx.io/blog/archives/).
 

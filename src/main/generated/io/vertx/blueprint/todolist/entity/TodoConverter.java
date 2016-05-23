@@ -21,7 +21,7 @@ import io.vertx.core.json.JsonArray;
 
 /**
  * Converter for {@link io.vertx.blueprint.todolist.entity.Todo}.
- * <p>
+ *
  * NOTE: This class has been automatically generated from the {@link io.vertx.blueprint.todolist.entity.Todo} original class using Vert.x codegen.
  */
 public class TodoConverter {
