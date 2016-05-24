@@ -4,9 +4,13 @@ plugins {
 
 version '1.0'
 
+ext {
+  vertxVersion = "3.2.1"
+}
+
 jar {
   // by default fat jar
-  archiveName = 'vertx-blueprint-todo-backend-fat'
+  archiveName = 'vertx-blueprint-todo-backend-fat.jar'
   from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
   manifest {
     attributes 'Main-Class': 'io.vertx.core.Launcher'
@@ -50,14 +54,14 @@ compileJava {
 }
 
 dependencies {
-  compile "io.vertx:vertx-core:3.3.0-SNAPSHOT"
-  compile 'io.vertx:vertx-web:3.2.1'
-  compile 'io.vertx:vertx-jdbc-client:3.2.1'
+  compile("io.vertx:vertx-core:3.3.0-SNAPSHOT")
+  compile("io.vertx:vertx-web:${vertxVersion}")
+  compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
+  compile("io.vertx:vertx-redis-client:${vertxVersion}")
+  compile("io.vertx:vertx-codegen:${vertxVersion}")
   compile 'mysql:mysql-connector-java:6.0.2'
-  compile 'io.vertx:vertx-redis-client:3.2.1'
-  compile 'io.vertx:vertx-codegen:3.2.1'
 
-  testCompile 'io.vertx:vertx-unit:3.2.1'
+  testCompile("io.vertx:vertx-unit:${vertxVersion}")
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 

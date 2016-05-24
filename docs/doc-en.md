@@ -41,7 +41,7 @@ What you are going to learn:
 - What is Vert.x and its basic design
 - What is and how to use `Verticle`
 - How to develop a REST API using Vert.x Web
-- How to make use of *asynchronous development model*
+- How to make use of **asynchronous development model**
 - How to use persistence such as *Redis* and *MySQL* with the help of Vert.x data access components
 
 This is the first part of Vert.x Blueprint. The code developed in this tutorial is available on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master).
@@ -759,7 +759,7 @@ To build a jar package with Vert.x Launcher, add the following content to the `b
 ```gradle
 jar {
   // by default fat jar
-  archiveName = 'vertx-blueprint-todo-backend-fat'
+  archiveName = 'vertx-blueprint-todo-backend-fat.jar'
   from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
   manifest {
       attributes 'Main-Class': 'io.vertx.core.Launcher'
@@ -770,7 +770,7 @@ jar {
 
 - In the `jar` field, we configure it to generate **fat-jar** when compiles and point out the launcher class. A *fat-jar* is a convenient way to package a Vert.x application. It creates a jar containing both your application and all dependencies. Then, to launch it, you just need to execute `java -jar xxx.jar` without having to handle the `CLASSPATH`.
 
-We set `Main-Class` attribute with `io.vertx.core.Launcher` so that we could make use of Vert.x Launcher to deploy verticle.
+We set `Main-Class` attribute with `io.vertx.core.Launcher` so that we could make use of Vert.x Launcher to deploy verticle. And we set `Main-Verticle` attribute with the verticle class we want to deploy.
 
 ### Run our service
 
@@ -795,7 +795,7 @@ Input `http://127.0.0.1:8082/todos`:
 
 Test result:
 
-![](img/todo-test-result.png)
+![TodoBackend Test Result](img/todo-test-result.png)
 
 Of course, we could also visit the link directly or use other tools(e.g. `curl`):
 
@@ -821,6 +821,8 @@ sczyh30@sczyh30-workshop:~$ curl http://127.0.0.1:8082/todos
   "url" : "http://127.0.0.1:8082/todos/981337975"
 } ]
 ```
+
+Vert.x Launcher also accepts json file as the verticle config using `-conf`. We'll see it soon.
 
 ## Decouple controller and service
 
@@ -1000,36 +1002,36 @@ public class TodoVerticle extends AbstractVerticle {
 
 So familiar yeah? The main structure of the verticle doesn't vary very much. Now let's write each route handlers using our service interface.
 
-First is `initData` method, which is used to init service and persistence. Code:
+First is `initData` method, which is used to init service and persistence. Here are the code:
 
 ```java
-  private void initData() {
-    final String serviceType = config().getString("service.type", "redis");
-    System.out.println("[INFO]Service Type: " + serviceType);
-    switch (serviceType) {
-      case "redis":
-        RedisOptions config = new RedisOptions()
-          .setHost(config().getString("redis.host", "127.0.0.1"))
-          .setPort(config().getInteger("redis.port", 6379));
-        service = new RedisTodoService(vertx, config);
-        break;
-      case "jdbc":
-        service = new JdbcTodoService(vertx, config());
-        break;
-    }
-
-    service.initData().setHandler(res -> {
-        if (res.failed()) {
-          System.err.println("[Error] Persistence service is not running!");
-          res.cause().printStackTrace();
-        }
-      });
+private void initData() {
+  final String serviceType = config().getString("service.type", "redis");
+  System.out.println("[INFO]Service Type: " + serviceType);
+  switch (serviceType) {
+    case "jdbc":
+      service = new JdbcTodoService(vertx, config());
+      break;
+    case "redis":
+    default:
+      RedisOptions config = new RedisOptions()
+        .setHost(config().getString("redis.host", "127.0.0.1"))
+        .setPort(config().getInteger("redis.port", 6379));
+      service = new RedisTodoService(vertx, config);
   }
+
+  service.initData().setHandler(res -> {
+      if (res.failed()) {
+        System.err.println("[Error] Persistence service is not running!");
+        res.cause().printStackTrace();
+      }
+    });
+}
 ```
 
+In `initData` method, we first read service type from the verticle config. Here we have two kinds of services: `redis` and `jdbc`, by default `redis`. Then we create corresponding service according to the service type, with the configuration we read from the config file. We'll see the config file later.
 
-
-We attach a handler on the `Future` returned by `service.initData()`. The handler will be called once the future is assigned or failed. Once the initialization action fails, our service will print error info on the console.
+Then we attach a handler on the `Future` returned by `service.initData()`. The handler will be called once the future is assigned or failed. Once the initialization action fails, our service will print error info on the console.
 
 Other handlers are similar to the version in `SingleApplicationVerticle`, but replace `redis` with `service`. We're not going to elaborate the detail. Just give code:
 
@@ -1266,6 +1268,8 @@ We use `JDBCClient.createShared(vertx, config)` to create an instance of JDBC cl
 - *user* - user of the database
 - *password* - password of the database
 
+As we mentioned above, we will read this `JsonObject` from a config file.
+
 Now we have the JDBC client. And we need a database table like this:
 
 ```sql
@@ -1426,18 +1430,126 @@ The `getAll`, `update`, `delete` and `deleteAll` methods follow the same pattern
 
 ### Run!
 
-TODO: change contents
+Let's create a `config` directory in the root directory. For `jdbc` type, we create a json config file `config_jdbc.json`:
 
-You need to replace JDBC `url`, `user` and `password` by your own.
+```json
+{
+  "service.type": "jdbc",
+  "url": "jdbc:mysql://localhost/vertx_blueprint?characterEncoding=UTF-8&useSSL=false",
+  "driver_class": "com.mysql.cj.jdbc.Driver",
+  "user": "vbpdb1",
+  "password": "666666*",
+  "max_pool_size": 30
+}
+```
 
-Let's now build and run our application:
+You need to replace `url`, `user` and `password` field by your own. If you want to use other database, you should also replace `driver_class` field with appropriate driver class.
+
+For `redis` type, we create a json config file `config.json`:
+
+```json
+{
+  "service.type": "redis"
+}
+```
+
+And here is the full content of the `build.gradle` file:
+
+```gradle
+plugins {
+  id 'java'
+}
+
+version '1.0'
+
+ext {
+  vertxVersion = "3.2.1"
+}
+
+jar {
+  // by default fat jar
+  archiveName = 'vertx-blueprint-todo-backend-fat.jar'
+  from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+  manifest {
+    attributes 'Main-Class': 'io.vertx.core.Launcher'
+    attributes 'Main-Verticle': 'io.vertx.blueprint.todolist.verticles.TodoVerticle'
+  }
+}
+
+repositories {
+  maven { // snapshot repo, will be removed after 3.3 version released
+    url "https://oss.sonatype.org/content/repositories/snapshots"
+  }
+  jcenter()
+  mavenCentral()
+  mavenLocal()
+}
+
+task annotationProcessing(type: JavaCompile, group: 'build') {
+  source = sourceSets.main.java
+  classpath = configurations.compile
+  destinationDir = project.file('src/main/generated')
+  options.compilerArgs = [
+    "-proc:only",
+    "-processor", "io.vertx.codegen.CodeGenProcessor",
+    "-AoutputDirectory=${destinationDir.absolutePath}"
+  ]
+}
+
+sourceSets {
+  main {
+    java {
+      srcDirs += 'src/main/generated'
+    }
+  }
+}
+
+compileJava {
+  targetCompatibility = 1.8
+  sourceCompatibility = 1.8
+
+  dependsOn annotationProcessing
+}
+
+dependencies {
+  compile ("io.vertx:vertx-core:3.3.0-SNAPSHOT")
+  compile ("io.vertx:vertx-web:${vertxVersion}")
+  compile ("io.vertx:vertx-jdbc-client:${vertxVersion}")
+  compile ("io.vertx:vertx-redis-client:${vertxVersion}")
+  compile ("io.vertx:vertx-codegen:${vertxVersion}")
+  compile 'mysql:mysql-connector-java:6.0.2'
+
+  testCompile ("io.vertx:vertx-unit:${vertxVersion}")
+  testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+
+task wrapper(type: Wrapper) {
+  gradleVersion = '2.12'
+}
+```
+
+Let's now build our application:
 
 ```bash
 gradle build
-java -jar build/libs/vertx-blueprint-todo-backend-fat.jar
+```
+
+Run our application with Redis:
+
+```bash
+java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config.json
+```
+
+Run our application with MySQL:
+
+```bash
+java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config_jdbc.json
 ```
 
 We could use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec) to test our todo API. As we didn’t change the API, the test should run smoothly.
+
+And we also provide a Docker Compose config file that could help us run our service with Docker Compose. You can see it in the repo.
 
 ## Cheers!
 

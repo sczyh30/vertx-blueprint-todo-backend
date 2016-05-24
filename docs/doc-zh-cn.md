@@ -2,8 +2,12 @@
 
 ## 目录
 
-- [踏入Vert.x之门](#踏入vertx之门)
 - [前言](#前言)
+- [踏入Vert.x之门](#踏入vertx之门)
+- [我们的应用 - 待办事项服务](#我们的应用---待办事项服务)
+- [说干就干！](#说干就干)
+- [终](#终)
+- [来自其它框架？](#来自其它框架)
 
 
 ## 前言
@@ -15,7 +19,7 @@
 - **Vert.x** 是什么，以及其基本设计思想
 - `Verticle`是什么，以及如何使用`Verticle`
 - 如何用 Vert.x Web 来开发REST风格的Web服务
-- *异步编程风格*
+- **异步编程风格** 的应用
 - 如何通过 Vert.x的各种组件来操作数据的持久化（如 *Redis* 和 *MySQL*）
 
 本教程是Vert.x 蓝图系列的第一篇教程。本教程中的完整代码已托管至[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master)。
@@ -93,6 +97,7 @@ dependencies {
   compile "io.vertx:vertx-core:3.2.1"
   compile 'io.vertx:vertx-web:3.2.1'
 
+  testCompile 'io.vertx:vertx-unit:3.2.1'
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 ```
@@ -100,7 +105,7 @@ dependencies {
 你可能不是很熟悉Gradle，这不要紧。我们来解释一下：
 
 - 我们将 `targetCompatibility` 和 `sourceCompatibility` 这两个值都设为**1.8**，代表目标Java版本是Java 8。这非常重要，因为Vert.x就是基于Java 8构建的。
-- 在`dependencies`中，我们声明了我们需要的依赖。`vertx-core`和`vert-web`用于开发REST API。
+- 在`dependencies`中，我们声明了我们需要的依赖。`vertx-core` 和 `vert-web` 用于开发REST API。
 
 **注：** 若国内用户出现用Gradle解析依赖非常缓慢的情况，可以尝试使用开源中国Maven镜像代替默认的镜像。只要在`build.gradle`中配置即可：
 ```groovy
@@ -118,11 +123,19 @@ repositories {
 
 首先我们需要创建我们的数据实体对象 - `Todo` 实体。在`io.vertx.blueprint.todolist.entity`包下创建`Todo`类，并且编写以下代码：
 
-```Java
+```java
 package io.vertx.blueprint.todolist.entity;
 
+import io.vertx.codegen.annotations.DataObject;
+import io.vertx.core.json.JsonObject;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
+
+@DataObject(generateConverter = true)
 public class Todo {
+
+  private static final AtomicInteger acc = new AtomicInteger(0); // counter
 
   private int id;
   private String title;
@@ -133,6 +146,22 @@ public class Todo {
   public Todo() {
   }
 
+  public Todo(Todo other) {
+    this.id = other.id;
+    this.title = other.title;
+    this.completed = other.completed;
+    this.order = other.order;
+    this.url = other.url;
+  }
+
+  public Todo(JsonObject obj) {
+    TodoConverter.fromJson(obj, this); // 还未生成的时候需要先注释掉，生成过后再取消注释
+  }
+
+  public Todo(String jsonStr) {
+    TodoConverter.fromJson(new JsonObject(jsonStr), this);
+  }
+
   public Todo(int id, String title, Boolean completed, Integer order, String url) {
     this.id = id;
     this.title = title;
@@ -141,12 +170,30 @@ public class Todo {
     this.url = url;
   }
 
+  public JsonObject toJson() {
+    JsonObject json = new JsonObject();
+    TodoConverter.toJson(this, json);
+    return json;
+  }
+
   public int getId() {
     return id;
   }
 
   public void setId(int id) {
     this.id = id;
+  }
+
+  public void setIncId() {
+    this.id = acc.incrementAndGet();
+  }
+
+  public static int getIncId() {
+    return acc.get();
+  }
+
+  public static void setIncIdWith(int n) {
+    acc.set(n);
   }
 
   public String getTitle() {
@@ -181,6 +228,39 @@ public class Todo {
     this.url = url;
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    Todo todo = (Todo) o;
+
+    if (id != todo.id) return false;
+    if (!title.equals(todo.title)) return false;
+    if (completed != null ? !completed.equals(todo.completed) : todo.completed != null) return false;
+    return order != null ? order.equals(todo.order) : todo.order == null;
+
+  }
+
+  @Override
+  public int hashCode() {
+    int result = id;
+    result = 31 * result + title.hashCode();
+    result = 31 * result + (completed != null ? completed.hashCode() : 0);
+    result = 31 * result + (order != null ? order.hashCode() : 0);
+    return result;
+  }
+
+  @Override
+  public String toString() {
+    return "Todo -> {" +
+      "id=" + id +
+      ", title='" + title + '\'' +
+      ", completed=" + completed +
+      ", order=" + order +
+      ", url='" + url + '\'' +
+      '}';
+  }
 
   private <T> T getOrElse(T value, T defaultValue) {
     return value == null ? defaultValue : value;
@@ -196,7 +276,59 @@ public class Todo {
 }
 ```
 
-我们的`Todo`实体对象由序号id、标题title、次序order、地址url以及代表待办事项是否完成的一个标识complete。我们可以把它看作是一个简单的Java Bean。它可以被编码成JSON数据，我们在后边会大量使用JSON。
+我们的 `Todo` 实体对象由序号id、标题title、次序order、地址url以及代表待办事项是否完成的一个标识complete。我们可以把它看作是一个简单的Java Bean。它可以被编码成JSON数据，我们在后边会大量使用JSON。同时注意到我们给`Todo`类加上了一个注解：`@DataObject`，这是用于生成JSON转换类的注解。
+
+[IMPORTANT DataObject注解 | 被 `@DataObject` 注解的实体类需要满足以下条件：拥有一个拷贝构造函数以及一个接受一个 `JsonObject` 对象的构造函数。 ]
+
+我们利用Vert.x Codegen来自动生成JSON转换类。我们需要在`build.gradle`中添加依赖：
+
+```gradle
+compile 'io.vertx:vertx-codegen:3.2.1'
+```
+
+同时，我们需要在`io.vertx.blueprint.todolist.entity`包中添加`package-info.java`文件来指引Vert.x Codegen来生成代码：
+
+```java
+/**
+ * Indicates that this module contains classes that need to be generated / processed.
+ */
+@ModuleGen(name = "vertx-blueprint-todo-entity", groupPackage = "io.vertx.blueprint.todolist.entity")
+package io.vertx.blueprint.todolist.entity;
+
+import io.vertx.codegen.annotations.ModuleGen;
+```
+
+Vert.x Codegen本质上是一个注解处理器(annotation processing tool)，因此我们还需要在`build.gradle`中配置apt。往里面添加以下代码：
+
+```gradle
+task annotationProcessing(type: JavaCompile, group: 'build') {
+  source = sourceSets.main.java
+  classpath = configurations.compile
+  destinationDir = project.file('src/main/generated')
+  options.compilerArgs = [
+    "-proc:only",
+    "-processor", "io.vertx.codegen.CodeGenProcessor",
+    "-AoutputDirectory=${destinationDir.absolutePath}"
+  ]
+}
+
+sourceSets {
+  main {
+    java {
+      srcDirs += 'src/main/generated'
+    }
+  }
+}
+
+compileJava {
+  targetCompatibility = 1.8
+  sourceCompatibility = 1.8
+
+  dependsOn annotationProcessing
+}
+```
+
+这样，每次我们在编译项目的时候，Vert.x Codegen都会自动检测含有`@DataObject`注解的类并且根据配置生成JSON转换类。在本例中，我们应该会得到一个`TodoConverter`类，然后我们可以在`Todo`类中使用它。
 
 ### Verticle
 
@@ -212,14 +344,12 @@ import io.vertx.redis.RedisOptions;
 
 public class SingleApplicationVerticle extends AbstractVerticle {
 
-  private static final String HOST = "127.0.0.1";
-  private static final int PORT = 8082;
+  private static final String HTTP_HOST = "0.0.0.0";
+  private static final String REDIS_HOST = "127.0.0.1";
+  private static final int HTTP_PORT = 8082;
+  private static final int REDIS_PORT = 6379;
 
-  private final RedisClient redis;
-
-  public SingleApplicationVerticle(RedisOptions redisOptions) {
-    this.redis = RedisClient.create(Vertx.vertx(), redisOptions);
-  }
+  private RedisClient redis;
 
   @Override
   public void start(Future<Void> future) throws Exception {
@@ -243,7 +373,7 @@ public class SingleApplicationVerticle extends AbstractVerticle {
 ```java
 @Override
 public void start(Future<Void> future) throws Exception {
-
+  initData();
   Router router = Router.router(vertx); // <1>
   // CORS support
   Set<String> allowHeaders = new HashSet<>();
@@ -383,49 +513,38 @@ Vert.x Redis允许我们以异步的形式操作Redis数据。我们首先需要
 compile 'io.vertx:vertx-redis-client:3.2.1'
 ```
 
-我们可以通过`RedisClient`对象来操作Redis中的数据，因此我们定义了一个类成员`redis`。在使用`RedisClient`之前，我们首先需要与Redis建立连接，并且需要配置（以`RedisOptions`的形式）。后边我们再讲需要配置哪些东西。现在，我们往`SingleApplicationVerticle`类中添加以下代码：
+我们可以通过`RedisClient`对象来操作Redis中的数据，因此我们定义了一个类成员`redis`。在使用`RedisClient`之前，我们首先需要与Redis建立连接，并且需要配置（以`RedisOptions`的形式），后边我们再讲需要配置哪些东西。我们来实现 `initData` 方法用于初始化 `RedisClient` 并且测试连接：
 
 ```java
-private final RedisClient redis;
+private void initData() {
+  RedisOptions config = new RedisOptions()
+      .setHost(config().getString("redis.host", REDIS_HOST))
+      .setPort(config().getInteger("redis.port", REDIS_PORT));
 
-public SingleApplicationVerticle(RedisOptions redisOptions) {
-  this.redis = RedisClient.create(Vertx.vertx(), redisOptions);
+  this.redis = RedisClient.create(vertx, config); // create redis client
+
+  redis.hset(Constants.REDIS_TODO_KEY, "24", Json.encodePrettily( // test connection
+    new Todo(24, "Something to do...", false, 1, "todo/ex")), res -> {
+    if (res.failed()) {
+      System.err.println("[Error] Redis service is not running!");
+      res.cause().printStackTrace();
+    }
+  });
+
 }
 ```
 
-可以看到我们在Verticle的构造函数中对RedisClient进行了初始化，这样一旦我们创建一个`SingleApplicationVerticle`实例的时候，`RedisClient`也随之初始化完毕。
+当我们在加载Verticle的时候，我们会首先调用`initData`方法，这样可以保证`RedisClient`可以被正常创建。
 
 #### 存储格式
 
-我们知道，Redis支持各种格式的数据，并且支持多种方式存储（如`list`、`hash`等）。这里我们将我们的待办事项存储在 *哈希表(hash)* 中。我们使用待办事项的`id`作为key，JSON格式的待办事项数据作为value。同时，我们的哈希表本身也要有个key，我们把它命名为*VERT_TODO*，并且存储到`Constants`类中：
+我们知道，Redis支持各种格式的数据，并且支持多种方式存储（如`list`、`hash`等）。这里我们将我们的待办事项存储在 *哈希表(map，hash)* 中。我们使用待办事项的`id`作为key，JSON格式的待办事项数据作为value。同时，我们的哈希表本身也要有个key，我们把它命名为 *VERT_TODO*，并且存储到`Constants`类中：
 
 ```java
 public static final String REDIS_TODO_KEY = "VERT_TODO";
 ```
 
-Vert.x提供了几个将对象编码为JSON数据以及将JSON数据解码为数据对象的函数。这里我们在`io.vertx.blueprint.todolist`包中创建一个`Utils`类，并且包装一个`getTodoFromJson`方法用于将JSON数据转换为我们的待办事项实体对象：
-
-```java
-package io.vertx.blueprint.todolist;
-
-import io.vertx.blueprint.todolist.entity.Todo;
-import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonObject;
-
-
-public class Utils {
-
-  private Utils() {}
-
-  public static Todo getTodoFromJson(String jsonStr) {
-    if (jsonStr == null)
-      return null;
-    else
-      return Json.decodeValue(jsonStr, Todo.class);
-  }
-
-}
-```
+正如我们之前提到的，我们利用了生成的JSON数据转换类来实现`Todo`实体与JSON数据之间的转换（通过几个构造函数），在后面实现待办事项服务的时候可以广泛利用。
 
 #### 获取/获取所有
 
@@ -479,10 +598,10 @@ private void handleGetAll(RoutingContext context) {
   redis.hvals(Constants.REDIS_TODO_KEY, res -> { // (1)
     if (res.succeeded()) {
       String encoded = Json.encodePrettily(res.result().stream() // (2)
-        .map(x -> Utils.getTodoFromJson((String) x))
+        .map(x -> new Todo((String) x))
         .collect(Collectors.toList()));
       context.response()
-        .putHeader("content-type", "application/json; charset=utf-8")
+        .putHeader("content-type", "application/json")
         .end(encoded); // (3)
     } else
       sendError(503, context.response());
@@ -492,7 +611,7 @@ private void handleGetAll(RoutingContext context) {
 
 这里我们通过`hvals`操作 (1) 来获取某个哈希表中的所有数据（以JSON数组的形式返回，即`JsonArray`对象）。在Handler中我们还是像之前那样先检查操作是否成功。如果成功的话我们就可以将结果写入response了。注意这里我们不能直接将返回的`JsonArray`写入response。想象一下返回的`JsonArray`包括着待办事项的key以及对应的JSON数据（字符串形式），因此此时每个待办事项对应的JSON数据都被转义了，所以我们需要先把这些转义过的JSON数据转换成实体对象，再重新编码。
 
-我们这里采用了一种响应式编程思想的方法。首先我们了解到`JsonArray`类继承了`Iterable<Object>`接口（是不是感觉它很像`List`呢？），因此我们可以通过`stream`方法将其转化为`Stream`对象。注意这里的`Stream`可不是传统意义上讲的输入输出流(I/O stream)，而是数据流(data flow)。我们需要对数据流进行一系列的变换处理操作，这就是响应式编程的思想（也有点函数式编程的思想）。我们对数据流中的每个字符串数据调用`Utils.getTodoFromJson`方法将其转换为`Todo`实体对象，这个过程是通过`map`算子实现的。我们这里就不深入讨论`map`算子了，但它在函数式编程中非常重要。在`map`过后，我们通过`collect`方法将数据流“归约”成`List<Todo>`。现在我们就可以通过`Json.encodePrettily`方法对得到的list进行编码了，转换成JSON格式的数据。最后我们将转换后的结果写入到response中 (3)。
+我们这里采用了一种响应式编程思想的方法。首先我们了解到`JsonArray`类继承了`Iterable<Object>`接口（是不是感觉它很像`List`呢？），因此我们可以通过`stream`方法将其转化为`Stream`对象。注意这里的`Stream`可不是传统意义上讲的输入输出流(I/O stream)，而是数据流(data flow)。我们需要对数据流进行一系列的变换处理操作，这就是响应式编程的思想（也有点函数式编程的思想）。我们将数据流中的每个字符串数据转换为`Todo`实体对象，这个过程是通过`map`算子实现的。我们这里就不深入讨论`map`算子了，但它在函数式编程中非常重要。在`map`过后，我们通过`collect`方法将数据流“归约”成`List<Todo>`。现在我们就可以通过`Json.encodePrettily`方法对得到的list进行编码了，转换成JSON格式的数据。最后我们将转换后的结果写入到response中 (3)。
 
 #### 创建待办事项
 
@@ -501,8 +620,7 @@ private void handleGetAll(RoutingContext context) {
 ```java
 private void handleCreateTodo(RoutingContext context) {
   try {
-    final Todo todo = wrapObject(Utils.getTodoFromJson
-      (context.getBodyAsString()), context);
+    final Todo todo = wrapObject(new Todo(context.getBodyAsString()), context);
     final String encoded = Json.encodePrettily(todo);
     redis.hset(Constants.REDIS_TODO_KEY, String.valueOf(todo.getId()),
       encoded, res -> {
@@ -524,12 +642,17 @@ private void handleCreateTodo(RoutingContext context) {
 
 ```java
 private Todo wrapObject(Todo todo, RoutingContext context) {
-  if (todo.getId() == 0)
-    todo.setId(Math.abs(new Random().nextInt()));
+  int id = todo.getId();
+  if (id > Todo.getIncId()) {
+    Todo.setIncIdWith(id);
+  } else if (id == 0)
+    todo.setIncId();
   todo.setUrl(context.request().absoluteURI() + "/" + todo.getId());
   return todo;
 }
 ```
+
+对于没有ID（或者为默认ID）的待办事项，我们会给它分配一个ID。这里我们采用了自增ID的策略，通过`AtomicInteger`来实现。
 
 然后我们通过`Json.encodePrettily`方法将我们的`Todo`实例再次编码成JSON格式的数据 (2)。接下来我们利用`hset`函数将待办事项实例插入到对应的哈希表中 (3)。如果插入成功，返回 `201` 状态码 (4)。
 
@@ -546,7 +669,7 @@ private Todo wrapObject(Todo todo, RoutingContext context) {
 private void handleUpdateTodo(RoutingContext context) {
   try {
     String todoID = context.request().getParam("todoId"); // (1)
-    final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString()); // (2)
+    final Todo newTodo = new Todo(context.getBodyAsString()); // (2)
     // handle error
     if (todoID == null || newTodo == null) {
       sendError(400, context.response());
@@ -559,12 +682,12 @@ private void handleUpdateTodo(RoutingContext context) {
         if (result == null)
           sendError(404, context.response()); // (4)
         else {
-          Todo oldTodo = Utils.getTodoFromJson(result);
+          Todo oldTodo = new Todo(result);
           String response = Json.encodePrettily(oldTodo.merge(newTodo)); // (5)
           redis.hset(Constants.REDIS_TODO_KEY, todoID, response, res -> { // (6)
             if (res.succeeded()) {
               context.response()
-                .putHeader("content-type", "application/json; charset=utf-8")
+                .putHeader("content-type", "application/json")
                 .end(response); // (7)
             }
           });
@@ -609,55 +732,32 @@ private void handleDeleteAll(RoutingContext context) {
 }
 ```
 
-啊哈！我们实现待办事项服务的Verticle已经完成咯～一颗赛艇！但是我们该如何去运行我们的`Verticle`呢？答案是，我们需要 *部署* 我们的Verticle。所以我们来写一个启动类。
+啊哈！我们实现待办事项服务的Verticle已经完成咯～一颗赛艇！但是我们该如何去运行我们的`Verticle`呢？答案是，我们需要 *部署并运行* 我们的Verticle。还好Vert.x提供了一个运行Verticle的辅助工具：Vert.x Launcher，让我们来看看如何利用它。
 
-### 启动类
+### 将应用与Vert.x Launcher一起打包
 
-我们在 `io.vertx.blueprint.todolist` 包下面创建 `Application` 类作为启动类，并且写以下的代码：
+要通过Vert.x Launcher来运行Verticle，我们首先需要在`build.gradle`中配置一下：
 
-```java
-package io.vertx.blueprint.todolist;
-
-import io.vertx.blueprint.todolist.verticles.SingleApplicationVerticle;
-import io.vertx.core.Verticle;
-import io.vertx.core.Vertx;
-import io.vertx.redis.RedisOptions;
-
-
-public class Application {
-
-  public static void main(String[] args) {
-    Vertx vertx = Vertx.vertx(); // (1)
-    RedisOptions config = new RedisOptions().setHost("127.0.0.1"); // (2)
-    Verticle todoVerticle = new SingleApplicationVerticle(config); // (3)
-    vertx.deployVerticle(todoVerticle, res -> { // (4)
-      if (res.succeeded())
-        System.out.println("Todo service is running at 8082 port...");
-      else
-        res.cause().printStackTrace();
-    });
-  }
-}
-```
-
-首先我们先获取 `Vertx` 实例 (1)，这是Vert.x的核心实例。然后我们创建了一个 `RedisOptions` 实例 (2)作为Vert.x-Redis的配置。接下来我们创建了我们的待办事项Verticle实例 (3)。最后我们使用 `vertx.deployVerticle` 方法来部署我们的Verticle (4)。当部署过程结束以后，我们的服务就会完美运行啦！
-
-### 打包
-
-接下来来给我们的应用打包。在`build.gradle`中添加如下配置：
-
-```groovy
+```gradle
 jar {
   // by default fat jar
-  baseName = 'vertx-blueprint-todo-backend-fat'
+  archiveName = 'vertx-blueprint-todo-backend-fat.jar'
   from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
   manifest {
-    attributes 'Main-Class': 'io.vertx.blueprint.todolist.Application'
+      attributes 'Main-Class': 'io.vertx.core.Launcher'
+      attributes 'Main-Verticle': 'io.vertx.blueprint.todolist.verticles.SingleApplicationVerticle'
   }
 }
 ```
 
-- 在`jar`区块中，我们配置Gradle使其生成 **fat-jar**，并指定启动类。*fat-jar* 是一个给Vert.x应用打包的简便方法，它直接将我们的应用连同所有的依赖都给打包到jar包中去了，这样我们可以直接通过jar包运行我们的应用而不必再指定依赖的 `CLASSPATH`。
+- 在`jar`区块中，我们配置Gradle使其生成 **fat-jar**，并指定启动类。*fat-jar* 是一个给Vert.x应用打包的简便方法，它直接将我们的应用连同所有的依赖都给打包到jar包中去了，这样我们可以直接通过jar包运行我们的应用而不必再指定依赖的 `CLASSPATH`
+- 我们将`Main-Class`属性设为`io.vertx.core.Launcher`，这样就可以通过Vert.x Launcher来启动对应的Verticle了。另外我们需要将`Main-Verticle`属性设为我们想要部署的Verticle的类名（全名）
+
+配置好了以后，我们就可以打包了：
+
+```bash
+gradle build
+```
 
 ### 运行我们的服务
 
@@ -667,14 +767,13 @@ jar {
 redis-server
 ```
 
-接着构建整个项目，然后运行：
+然后运行服务：
 
 ```bash
-gradle build
 java -jar build/libs/vertx-blueprint-todo-backend-fat.jar
 ```
 
-如果没问题的话，你将会在终端中看到 *Todo service is running at 8082 port...* 的字样。下面我们可以自由测试我们的API了，其中最简便的方法是借助 [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec) 来测试。
+如果没问题的话，你将会在终端中看到 `Succeeded in deploying verticle` 的字样。下面我们可以自由测试我们的API了，其中最简便的方法是借助 [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec) 来测试。
 
 键入 `http://127.0.0.1:8082/todos`：
 
@@ -760,7 +859,6 @@ public interface TodoService {
 package io.vertx.blueprint.todolist.verticles;
 
 import io.vertx.blueprint.todolist.Constants;
-import io.vertx.blueprint.todolist.Utils;
 import io.vertx.blueprint.todolist.entity.Todo;
 import io.vertx.blueprint.todolist.service.TodoService;
 
@@ -784,14 +882,10 @@ import java.util.function.Consumer;
 
 public class TodoVerticle extends AbstractVerticle {
 
-  private static final String HOST = "127.0.0.1";
+  private static final String HOST = "0.0.0.0";
   private static final int PORT = 8082;
 
-  private final TodoService service;
-
-  public TodoVerticle(TodoService service) {
-    this.service = service;
-  }
+  private TodoService service;
 
   private void initData() {
     // TODO
@@ -879,8 +973,11 @@ public class TodoVerticle extends AbstractVerticle {
   }
 
   private Todo wrapObject(Todo todo, RoutingContext context) {
-    if (todo.getId() == 0)
-      todo.setId(Math.abs(new Random().nextInt()));
+    int id = todo.getId();
+    if (id > Todo.getIncId()) {
+      Todo.setIncIdWith(id);
+    } else if (id == 0)
+      todo.setIncId();
     todo.setUrl(context.request().absoluteURI() + "/" + todo.getId());
     return todo;
   }
@@ -893,6 +990,20 @@ public class TodoVerticle extends AbstractVerticle {
 
 ```java
 private void initData() {
+  final String serviceType = config().getString("service.type", "redis");
+  System.out.println("[INFO]Service Type: " + serviceType);
+  switch (serviceType) {
+    case "jdbc":
+      service = new JdbcTodoService(vertx, config());
+      break;
+    case "redis":
+    default:
+      RedisOptions config = new RedisOptions()
+        .setHost(config().getString("redis.host", "127.0.0.1"))
+        .setPort(config().getInteger("redis.port", 6379));
+      service = new RedisTodoService(vertx, config);
+  }
+
   service.initData().setHandler(res -> {
       if (res.failed()) {
         System.err.println("[Error] Persistence service is not running!");
@@ -902,7 +1013,9 @@ private void initData() {
 }
 ```
 
-我们给`service.initData()`方法返回的`Future`对象绑定了一个`Handler`，这个`Handler`将会在`Future`得到结果的时候被调用。一旦初始化过程失败，错误信息将会显示到终端上。
+首先我们从配置中获取服务的类型，这里我们有两种类型的服务：`redis`和`jdbc`，默认是`redis`。接着我们会根据服务的类型以及对应的配置来创建服务。在这里，我们的配置都是从JSON格式的配置文件中读取，并通过Vert.x Launcher的`-conf`项加载。后面我们再讲要配置哪些东西。
+
+接着我们给`service.initData()`方法返回的`Future`对象绑定了一个`Handler`，这个`Handler`将会在`Future`得到结果的时候被调用。一旦初始化过程失败，错误信息将会显示到终端上。
 
 其它的方法实现也类似，这里就不详细解释了，直接放上代码，非常简洁明了：
 
@@ -922,15 +1035,14 @@ private <T> Handler<AsyncResult<T>> resultHandler(RoutingContext context, Consum
 
 private void handleCreateTodo(RoutingContext context) {
   try {
-    final Todo todo = wrapObject(Utils.getTodoFromJson
-      (context.getBodyAsString()), context);
+    final Todo todo = wrapObject(new Todo(context.getBodyAsString()), context);
     final String encoded = Json.encodePrettily(todo);
 
     service.insert(todo).setHandler(resultHandler(context, res -> {
       if (res) {
         context.response()
           .setStatusCode(201)
-          .putHeader("content-type", "application/json; charset=utf-8")
+          .putHeader("content-type", "application/json")
           .end(encoded);
       } else {
         serviceUnavailable(context);
@@ -954,7 +1066,7 @@ private void handleGetTodo(RoutingContext context) {
     else {
       final String encoded = Json.encodePrettily(res.get());
       context.response()
-        .putHeader("content-type", "application/json; charset=utf-8")
+        .putHeader("content-type", "application/json")
         .end(encoded);
     }
   }));
@@ -967,7 +1079,7 @@ private void handleGetAll(RoutingContext context) {
     } else {
       final String encoded = Json.encodePrettily(res);
       context.response()
-        .putHeader("content-type", "application/json; charset=utf-8")
+        .putHeader("content-type", "application/json")
         .end(encoded);
     }
   }));
@@ -976,9 +1088,9 @@ private void handleGetAll(RoutingContext context) {
 private void handleUpdateTodo(RoutingContext context) {
   try {
     String todoID = context.request().getParam("todoId");
-    final Todo newTodo = Utils.getTodoFromJson(context.getBodyAsString());
+    final Todo newTodo = new Todo(context.getBodyAsString());
     // handle error
-    if (newTodo == null || todoID == null) {
+    if (todoID == null) {
       sendError(400, context.response());
       return;
     }
@@ -989,7 +1101,7 @@ private void handleUpdateTodo(RoutingContext context) {
         else {
           final String encoded = Json.encodePrettily(res);
           context.response()
-            .putHeader("content-type", "application/json; charset=utf-8")
+            .putHeader("content-type", "application/json")
             .end(encoded);
         }
       }));
@@ -1026,7 +1138,7 @@ private void handleDeleteAll(RoutingContext context) {
 
 是不是和之前的Verticle很相似呢？这里我们还封装了两个`Handler`生成器：`resultHandler` 和 `deleteResultHandler`。这两个生成器封装了一些重复的代码，可以减少代码量。
 
-嗯。。。我们的新Verticle实现好了，那么是时候去实现具体的业务逻辑了。这里我们会实现两个版本的业务逻辑，分别对应两种存储：Redis和MySQL。
+嗯。。。我们的新Verticle实现好了，那么是时候去实现具体的业务逻辑了。这里我们会实现两个版本的业务逻辑，分别对应两种存储：**Redis** 和 **MySQL**。
 
 ### Vert.x-Redis版本的待办事项服务
 
@@ -1061,15 +1173,45 @@ public Future<Todo> update(String todoId, Todo newTodo) {
 
 ### Vert.x-JDBC版本的待办事项服务
 
+待更新
+
 #### JDBC ++ 异步
 
+### 再来运行！
+
 ## 终
+
+哈哈，恭喜你完成了整个待办事项服务～在整个教程中，你应该学到了很多关于 `Vert.x Web`、 `Vert.x Redis` 和 `Vert.x JDBC` 的开发知识。当然，最重要的是，你会对Vert.x的异步开发模型有着更深的理解和领悟。
+
+更多关于Vert.x的文章，请参考[Blog on Vert.x Website](http://vertx.io/blog/archives/)。
 
 ## 来自其它框架？
 
 之前你可能用过其它的框架，比如Spring Boot。这一小节，我将会用类比的方式来介绍Vert.x Web的使用。
 
 ### 来自Spring Boot/Spring MVC
+
+在Spring Boot中，我们通常在控制器(Controller)中来配置路由以及处理请求，比如：
+
+```java
+@RestController
+@ComponentScan
+@EnableAutoConfiguration
+public class TodoController {
+
+  @Autowired
+  private TodoService service;
+
+  @RequestMapping(method = RequestMethod.GET, value = "/todos/{id}")
+  public Todo getCertain(@PathVariable("id") int id) {
+    return service.fetch(id);
+  }
+}
+```
+
+在Spring Boot中，我们使用`@RequestMapping`注解来配置路由，而在Vert.x Web中，我们是通过`Router`对象来配置路由的。并且因为Vert.x Web是异步的，我们会给每个路由绑定一个处理器（`Handler`）来处理对应的请求。
+
+另外，在Vert.x Web中，我们使用`end`方法来向客户端发送HTTP Response。相对地，在Spring Boot中我们直接在每个方法中返回结果作为Response。
 
 ### 来自Play Framework 2
 

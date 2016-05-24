@@ -42,15 +42,15 @@ public class TodoVerticle extends AbstractVerticle {
     final String serviceType = config().getString("service.type", "redis");
     System.out.println("[INFO]Service Type: " + serviceType);
     switch (serviceType) {
+      case "jdbc":
+        service = new JdbcTodoService(vertx, config());
+        break;
       case "redis":
+      default:
         RedisOptions config = new RedisOptions()
           .setHost(config().getString("redis.host", "127.0.0.1"))
           .setPort(config().getInteger("redis.port", 6379));
         service = new RedisTodoService(vertx, config);
-        break;
-      case "jdbc":
-        service = new JdbcTodoService(vertx, config());
-        break;
     }
 
     service.initData().setHandler(res -> {
