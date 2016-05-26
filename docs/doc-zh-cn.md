@@ -6,8 +6,11 @@
 - [踏入Vert.x之门](#踏入vertx之门)
 - [我们的应用 - 待办事项服务](#我们的应用---待办事项服务)
 - [说干就干！](#说干就干)
+- [Vert.x Web与REST API](#vertx-web与rest-api)
+- [重构：将服务与控制器分离](#将服务与控制器分离)
 - [终](#终)
 - [来自其它框架？](#来自其它框架)
+
 
 
 ## 前言
@@ -751,7 +754,7 @@ jar {
 ```
 
 - 在`jar`区块中，我们配置Gradle使其生成 **fat-jar**，并指定启动类。*fat-jar* 是一个给Vert.x应用打包的简便方法，它直接将我们的应用连同所有的依赖都给打包到jar包中去了，这样我们可以直接通过jar包运行我们的应用而不必再指定依赖的 `CLASSPATH`
-- 我们将`Main-Class`属性设为`io.vertx.core.Launcher`，这样就可以通过Vert.x Launcher来启动对应的Verticle了。另外我们需要将`Main-Verticle`属性设为我们想要部署的Verticle的类名（全名）
+- 我们将`Main-Class`属性设为`io.vertx.core.Launcher`，这样就可以通过Vert.x Launcher来启动对应的Verticle了。另外我们需要将`Main-Verticle`属性设为我们想要部署的Verticle的类名（全名）。
 
 配置好了以后，我们就可以打包了：
 
@@ -1173,15 +1176,369 @@ public Future<Todo> update(String todoId, Todo newTodo) {
 
 ### Vert.x-JDBC版本的待办事项服务
 
-待更新
-
 #### JDBC ++ 异步
+
+我们使用Vert.x-JDBC和MySQL来实现JDBC版本的待办事项服务。我们知道，数据库操作都是阻塞操作，很可能会占用不少时间。而Vert.x-JDBC提供了一种异步操作数据库的方法，很神奇吧？所以，在传统JDBC代码下我们要执行SQL语句需要这样：
+
+```java
+String SQL = "SELECT * FROM todo";
+// ...
+ResultSet rs = pstmt.executeQuery(SQL);
+```
+
+而在Vert.x JDBC中，我们可以利用回调获取数据：
+
+```java
+connection.query(SQL, result -> {
+    // do something with result...
+});
+```
+
+这种异步操作可以有效避免对数据的等待。当数据获取成功时会自动调用回调函数来执行处理数据的逻辑。
+
+#### 添加依赖
+
+首先我们需要向`build.gradle`文件中添加依赖：
+
+```groovy
+compile 'io.vertx:vertx-jdbc-client:3.2.1'
+compile 'mysql:mysql-connector-java:6.0.2'
+```
+
+其中第二个依赖是MySQL的驱动，如果你想使用其他的数据库，你需要自行替换掉这个依赖。
+
+#### 初始化JDBCClient
+
+在Vert.x JDBC中，我们需要从一个`JDBCClient`对象中获取数据库连接，因此我们来看一下如何创建`JDBCClient`实例。在`io.vertx.blueprint.todolist.service`包下创建`JdbcTodoService`类：
+
+```java
+package io.vertx.blueprint.todolist.service;
+
+import io.vertx.blueprint.todolist.entity.Todo;
+
+import io.vertx.core.Future;
+import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.jdbc.JDBCClient;
+import io.vertx.ext.sql.SQLConnection;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+
+public class JdbcTodoService implements TodoService {
+
+  private final Vertx vertx;
+  private final JsonObject config;
+  private final JDBCClient client;
+
+  public JdbcTodoService(JsonObject config) {
+    this(Vertx.vertx(), config);
+  }
+
+  public JdbcTodoService(Vertx vertx, JsonObject config) {
+    this.vertx = vertx;
+    this.config = config;
+    this.client = JDBCClient.createShared(vertx, config);
+  }
+
+  // ...
+}
+```
+
+我们使用`JDBCClient.createShared(vertx, config)`方法来创建一个`JDBCClient`实例，其中我们传入一个`JsonObject`对象作为配置。一般来说，我们需要配置以下的内容：
+
+- *url* - JDBC URL，比如 `jdbc:mysql://localhost/vertx_blueprint`
+- *driver_class* - JDBC驱动名称，比如 `com.mysql.cj.jdbc.Driver`
+- *user* - 数据库用户
+- *password* - 数据库密码
+
+我们将会通过Vert.x Launcher从配置文件中读取此`JsonObject`。
+
+现在我们已经创建了`JDBCClient`实例了，下面我们需要在MySQL中建这样一个表：
+
+```sql
+CREATE TABLE `todo` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `title` VARCHAR(255) DEFAULT NULL,
+  `completed` TINYINT(1) DEFAULT NULL,
+  `order` INT(11) DEFAULT NULL,
+  `url` VARCHAR(255) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+)
+```
+
+我们把要用到的数据库语句都存到服务类中：
+
+```java
+private static final String SQL_CREATE = "CREATE TABLE IF NOT EXISTS `todo` (\n" +
+  "  `id` int(11) NOT NULL AUTO_INCREMENT,\n" +
+  "  `title` varchar(255) DEFAULT NULL,\n" +
+  "  `completed` tinyint(1) DEFAULT NULL,\n" +
+  "  `order` int(11) DEFAULT NULL,\n" +
+  "  `url` varchar(255) DEFAULT NULL,\n" +
+  "  PRIMARY KEY (`id`) )";
+private static final String SQL_INSERT = "INSERT INTO `todo` " +
+  "(`id`, `title`, `completed`, `order`, `url`) VALUES (?, ?, ?, ?, ?)";
+private static final String SQL_QUERY = "SELECT * FROM todo WHERE id = ?";
+private static final String SQL_QUERY_ALL = "SELECT * FROM todo";
+private static final String SQL_UPDATE = "UPDATE `todo`\n" +
+  "SET\n" +
+  "`id` = ?,\n" +
+  "`title` = ?,\n" +
+  "`completed` = ?,\n" +
+  "`order` = ?,\n" +
+  "`url` = ?\n" +
+  "WHERE `id` = ?;";
+private static final String SQL_DELETE = "DELETE FROM `todo` WHERE `id` = ?";
+private static final String SQL_DELETE_ALL = "DELETE FROM `todo`";
+```
+
+OK！一切工作准备就绪，下面我们来实现我们的JDBC版本的服务～
+
+#### 实现JDBC版本的服务
+
+所有的获取连接、获取执行数据的操作都要在`Handler`中完成。比如我们可以这样获取数据库连接：
+
+```java
+client.getConnection(conn -> {
+      if (conn.succeeded()) {
+        final SQLConnection connection = conn.result();
+        // do something...
+      } else {
+        // handle failure
+      }
+    });
+```
+
+由于每一个数据库操作都需要获取数据库连接，因此我们来包装一个返回`Handler<AsyncResult<SQLConnection>>`的方法，在此回调中可以直接使用数据库连接，可以减少一些代码量：
+
+```java
+private Handler<AsyncResult<SQLConnection>> connHandler(Future future, Handler<SQLConnection> handler) {
+  return conn -> {
+    if (conn.succeeded()) {
+      final SQLConnection connection = conn.result();
+      handler.handle(connection);
+    } else {
+      future.fail(conn.cause());
+    }
+  };
+}
+```
+
+获取数据库连接以后，我们就可以对数据库进行各种操作了：
+
+- `query` : 执行查询（raw SQL）
+- `queryWithParams` : 执行预编译查询（prepared statement）
+- `updateWithParams` : 执行预编译DDL语句（prepared statement）
+- `execute`: 执行任意SQL语句
+
+所有的方法都是异步的所以每个方法最后都接受一个`Handler`参数，我们可以在此`Handler`中获取结果并执行相应逻辑。
+
+现在我们来编写初始化数据库表的`initData`方法：
+
+```java
+@Override
+public Future<Boolean> initData() {
+  Future<Boolean> result = Future.future();
+  client.getConnection(connHandler(result, connection ->
+    connection.execute(SQL_CREATE, create -> {
+      if (create.succeeded()) {
+        result.complete(true);
+      } else {
+        result.fail(create.cause());
+      }
+      connection.close();
+    })));
+  return result;
+}
+```
+
+此方法仅会在Verticle初始化时被调用，如果`todo`表不存在的话就创建一下。注意，最后一定要关闭数据库连接。
+
+下面我们来实现插入逻辑方法：
+
+```java
+@Override
+public Future<Boolean> insert(Todo todo) {
+  Future<Boolean> result = Future.future();
+  client.getConnection(connHandler(result, connection -> {
+    connection.updateWithParams(SQL_INSERT, new JsonArray().add(todo.getId())
+      .add(todo.getTitle())
+      .add(todo.isCompleted())
+      .add(todo.getOrder())
+      .add(todo.getUrl()), r -> {
+      if (r.failed()) {
+        result.fail(r.cause());
+      } else {
+        result.complete(true);
+      }
+      connection.close();
+    });
+  }));
+  return result;
+}
+```
+
+我们使用`updateWithParams`方法执行插入逻辑，并且传递了一个`JsonArray`变量作为预编译参数。这一点很重要，使用预编译语句可以有效防止SQL注入。
+
+我们再来实现`getCertain`方法：
+
+```java
+@Override
+public Future<Optional<Todo>> getCertain(String todoID) {
+  Future<Optional<Todo>> result = Future.future();
+  client.getConnection(connHandler(result, connection -> {
+    connection.queryWithParams(SQL_QUERY, new JsonArray().add(todoID), r -> {
+      if (r.failed()) {
+        result.fail(r.cause());
+      } else {
+        List<JsonObject> list = r.result().getRows();
+        if (list == null || list.isEmpty()) {
+          result.complete(Optional.empty());
+        } else {
+          result.complete(Optional.of(new Todo(list.get(0))));
+        }
+      }
+      connection.close();
+    });
+  }));
+  return result;
+}
+```
+
+在这个方法里，当我们的查询语句执行以后，我们获得到了`ResultSet`实例作为查询的结果集。我们可以通过`getColumnNames`方法获取字段名称，通过`getResults`方法获取结果。这里我们通过`getRows`方法来获取结果集，结果集的类型为`List<JsonObject>`。
+
+其余的几个方法：`getAll`, `update`, `delete` 以及 `deleteAll`都遵循上面的模式，这里就不多说了。你可以在[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/src/main/java/io/vertx/blueprint/todolist/service/JdbcTodoService.java)上浏览完整的源代码。
 
 ### 再来运行！
 
-## 终
+我们在项目的根目录下创建一个 `config` 文件夹作为配置文件夹。我们先创建一个`config_jdbc.json`文件作为 `jdbc`类型服务配置：
 
-哈哈，恭喜你完成了整个待办事项服务～在整个教程中，你应该学到了很多关于 `Vert.x Web`、 `Vert.x Redis` 和 `Vert.x JDBC` 的开发知识。当然，最重要的是，你会对Vert.x的异步开发模型有着更深的理解和领悟。
+```json
+{
+  "service.type": "jdbc",
+  "url": "jdbc:mysql://localhost/vertx_blueprint?characterEncoding=UTF-8&useSSL=false",
+  "driver_class": "com.mysql.cj.jdbc.Driver",
+  "user": "vbpdb1",
+  "password": "666666*",
+  "max_pool_size": 30
+}
+```
+
+你需要根据自己的情况替换掉上述配置文件中相应的内容。
+
+再建一个`config.json`文件作为`redis`类型服务的配置（其它的项就用默认配置好啦）：
+
+```json
+{
+  "service.type": "redis"
+}
+```
+
+构建文件也需要更新咯～直接给出最终的`build.gradle`文件：
+
+```gradle
+plugins {
+  id 'java'
+}
+
+version '1.0'
+
+ext {
+  vertxVersion = "3.2.1"
+}
+
+jar {
+  // by default fat jar
+  archiveName = 'vertx-blueprint-todo-backend-fat.jar'
+  from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+  manifest {
+    attributes 'Main-Class': 'io.vertx.core.Launcher'
+    attributes 'Main-Verticle': 'io.vertx.blueprint.todolist.verticles.TodoVerticle'
+  }
+}
+
+repositories {
+  maven { // snapshot repo, will be removed after 3.3 version released
+    url "https://oss.sonatype.org/content/repositories/snapshots"
+  }
+  jcenter()
+  mavenCentral()
+  mavenLocal()
+}
+
+task annotationProcessing(type: JavaCompile, group: 'build') {
+  source = sourceSets.main.java
+  classpath = configurations.compile
+  destinationDir = project.file('src/main/generated')
+  options.compilerArgs = [
+    "-proc:only",
+    "-processor", "io.vertx.codegen.CodeGenProcessor",
+    "-AoutputDirectory=${destinationDir.absolutePath}"
+  ]
+}
+
+sourceSets {
+  main {
+    java {
+      srcDirs += 'src/main/generated'
+    }
+  }
+}
+
+compileJava {
+  targetCompatibility = 1.8
+  sourceCompatibility = 1.8
+
+  dependsOn annotationProcessing
+}
+
+dependencies {
+  compile ("io.vertx:vertx-core:3.3.0-SNAPSHOT")
+  compile ("io.vertx:vertx-web:${vertxVersion}")
+  compile ("io.vertx:vertx-jdbc-client:${vertxVersion}")
+  compile ("io.vertx:vertx-redis-client:${vertxVersion}")
+  compile ("io.vertx:vertx-codegen:${vertxVersion}")
+  compile 'mysql:mysql-connector-java:6.0.2'
+
+  testCompile ("io.vertx:vertx-unit:${vertxVersion}")
+  testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+
+task wrapper(type: Wrapper) {
+  gradleVersion = '2.12'
+}
+```
+
+好啦～打开终端，构建我们的应用：
+
+```bash
+gradle build
+```
+
+我们可以运行Redis版本的待办事项服务：
+
+```bash
+java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config.json
+```
+
+我们也可以运行JDBC版本的待办事项服务：
+
+```bash
+java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config_jdbc.json
+```
+
+同样地，我们也可以使用[todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec)来测试我们的API。由于我们的API设计没有改变，因此测试应该会成功。
+
+我们也提供了Docker Compose镜像的构建文件，可以直接通过Docker来运行我们的服务。你可以在仓库的根目录下看到相应的配置文件，并通过`docker-compose up`来运行。
+
+## 终！
+
+哈哈，恭喜你完成了整个待办事项服务～在整个教程中，你应该学到了很多关于 `Vert.x Web`、 `Vert.x Redis` 和 `Vert.x JDBC` 的开发知识。当然，最重要的是，你会对Vert.x的 **异步开发模型** 有着更深的理解和领悟。
 
 更多关于Vert.x的文章，请参考[Blog on Vert.x Website](http://vertx.io/blog/archives/)。
 

@@ -22,7 +22,7 @@
         - [Remove/Remove all](#removeremove-all)
     - [Package with Vert.x Launcher](#package-with-vertx-launcher)
     - [Run our service](#run-our-service)
-- [Decouple controller and service](#decouple-controller-and-service)
+- [Refactor: Decouple controller and service](#decouple-controller-and-service)
     - [Asynchronous service using Future](#asynchronous-service-using-future)
     - [Refactor!](#refactor)
     - [Implement our service with Vert.x-Redis](#implement-our-service-with-vertx-redis)
@@ -1222,7 +1222,7 @@ The first dependency provides `vertx-jdbc-client`, while the other provides the 
 
 #### Initialize the JDBC client
 
-In Vert.x-JDBC, we get a SQL connection from `JDBCClient` object; So let's see how to create a JDBCClient instance.
+In Vert.x-JDBC, we get a database connection from `JDBCClient` object; So let's see how to create a `JDBCClient` instance.
 
 Create `JdbcTodoService` class in `io.vertx.blueprint.todolist.service` package and write:
 
@@ -1424,7 +1424,7 @@ public Future<Optional<Todo>> getCertain(String todoID) {
 }
 ```
 
-Here after the statement having been executed, we got a `ResultSet` instance, which represents the results of a query. The list of column names are available with `getColumnNames`, and the actual results available with `getResults`. Here  retrieve the rows as a list of Json object instances with `getRows` method.
+Here after the statement having been executed, we got a `ResultSet` instance, which represents the results of a query. The list of column names are available with `getColumnNames`, and the actual results available with `getResults`. Here we retrieve the rows as a list of Json object instances with `getRows` method.
 
 The `getAll`, `update`, `delete` and `deleteAll` methods follow the same pattern. You can look up the code on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/src/main/java/io/vertx/blueprint/todolist/service/JdbcTodoService.java).
 
@@ -1453,7 +1453,7 @@ For `redis` type, we create a json config file `config.json`:
 }
 ```
 
-And here is the full content of the `build.gradle` file:
+And we should also modify the build file. Here is the full content of the `build.gradle` file:
 
 ```gradle
 plugins {
