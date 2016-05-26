@@ -1,0 +1,71 @@
+plugins {
+  id 'java'
+}
+
+version '1.0'
+
+ext {
+  vertxVersion = "3.2.1"
+}
+
+jar {
+  // by default fat jar
+  archiveName = 'vertx-blueprint-todo-backend-fat.jar'
+  from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+  manifest {
+    attributes 'Main-Class': 'io.vertx.core.Launcher'
+    attributes 'Main-Verticle': 'io.vertx.blueprint.todolist.verticles.TodoVerticle'
+  }
+}
+
+repositories {
+  maven { // snapshot repo, will be removed after 3.3 version released
+    url "https://oss.sonatype.org/content/repositories/snapshots"
+  }
+  jcenter()
+  mavenCentral()
+  mavenLocal()
+}
+
+task annotationProcessing(type: JavaCompile, group: 'build') {
+  source = sourceSets.main.java
+  classpath = configurations.compile
+  destinationDir = project.file('src/main/generated')
+  options.compilerArgs = [
+    "-proc:only",
+    "-processor", "io.vertx.codegen.CodeGenProcessor",
+    "-AoutputDirectory=${destinationDir.absolutePath}"
+  ]
+}
+
+sourceSets {
+  main {
+    java {
+      srcDirs += 'src/main/generated'
+    }
+  }
+}
+
+compileJava {
+  targetCompatibility = 1.8
+  sourceCompatibility = 1.8
+
+  dependsOn annotationProcessing
+}
+
+dependencies {
+  compile("io.vertx:vertx-core:3.3.0-SNAPSHOT")
+  compile("io.vertx:vertx-web:${vertxVersion}")
+  compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
+  compile("io.vertx:vertx-redis-client:${vertxVersion}")
+  compile("io.vertx:vertx-codegen:${vertxVersion}")
+  compile 'mysql:mysql-connector-java:6.0.2'
+
+  testCompile("io.vertx:vertx-unit:${vertxVersion}")
+  testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+
+task wrapper(type: Wrapper) {
+  gradleVersion = '2.12'
+}

@@ -1,0 +1,7 @@
+{
+  "service.type": "redis",
+  "http.port": 8082,
+  "http.address": "0.0.0.0",
+  "redis.host": "redis",
+  "redis.port": 6379
+}
