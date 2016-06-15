@@ -6,12 +6,38 @@
 - [踏入Vert.x之门](#踏入vertx之门)
 - [我们的应用 - 待办事项服务](#我们的应用---待办事项服务)
 - [说干就干！](#说干就干)
+    - [Gradle配置文件](#gradle配置文件)
+    - [待办事项对象](#待办事项对象)
+    - [Verticle](#Verticle)
 - [Vert.x Web与REST API](#vertx-web与rest-api)
+    - [创建HTTP服务端并配置路由](#创建http服务端并配置路由)
+    - [配置路由](#配置路由)
+    - [异步方法模式](#异步方法模式)
+    - [待办事项逻辑实现](#待办事项逻辑实现)
+        - [Vert.x Redis](#vertx-redis)
+        - [存储格式](#存储格式)
+        - [获取/获取所有待办事项](#获取获取所有待办事项)
+        - [创建待办事项](#创建待办事项)
+        - [更新待办事项](#更新待办事项)
+        - [删除/删除全部待办事项](#删除删除全部待办事项)
+    - [将应用与Vert.x Launcher一起打包](#将应用与vertx-launcher一起打包)
+    - [运行我们的待办事项服务](#运行我们的服务)
 - [重构：将服务与控制器分离](#将服务与控制器分离)
-- [终](#终)
+    - [用Future实现异步服务](#用future实现异步服务)
+    - [开始重构！](#开始重构)
+    - [Vert.x-Redis版本的待办事项服务](#vertx-redis版本的待办事项服务)
+        - [Monadic Future](#monadic-future)
+    - [Vert.x-JDBC版本的待办事项服务](#vertx-jdbc版本的待办事项服务)
+        - [JDBC ++ 异步](#jdbc--异步)
+        - [添加依赖](#添加依赖)
+        - [初始化JDBCClient](#初始化jdbcclient)
+        - [实现JDBC版本的服务](#实现jdbc版本的服务)
+    - [再来运行！](#再来运行)
+- [哈哈，成功了！](#哈哈成功了)
 - [来自其它框架？](#来自其它框架)
-
-
+    - [来自Spring Boot/Spring MVC](#来自spring-bootspring-mvc)
+    - [来自Play Framework 2](#来自play-framework-2)
+    - [想要使用其它持久化存储框架？](#想要使用其它持久化存储框架)
 
 ## 前言
 
@@ -21,11 +47,11 @@
 
 - **Vert.x** 是什么，以及其基本设计思想
 - `Verticle`是什么，以及如何使用`Verticle`
-- 如何用 Vert.x Web 来开发REST风格的Web服务
+- 如何用 **Vert.x Web** 来开发REST风格的Web服务
 - **异步编程风格** 的应用
-- 如何通过 Vert.x的各种组件来操作数据的持久化（如 *Redis* 和 *MySQL*）
+- 如何通过 Vert.x 的各种组件来进行数据的存储操作（如 *Redis* 和 *MySQL*）
 
-本教程是Vert.x 蓝图系列的第一篇教程。本教程中的完整代码已托管至[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master)。
+本教程是**Vert.x 蓝图系列**的第一篇教程，对应的Vert.x版本为**3.3.0**。本教程中的完整代码已托管至[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master)。
 
 ## 踏入Vert.x之门
 
@@ -33,20 +59,18 @@
 
 > Vert.x is a tool-kit for building reactive applications on the JVM.
 
-(⊙o⊙)哦哦。。。Vert.x是一个在JVM上构建**响应式**应用的一个**工具集**。这个定义比较模糊，我们来简单解释一下。**工具集** 意味着Vert.x非常轻量，可以嵌入到你当前的应用中而不需要改变现有的结构。另一个重要的描述是**响应式**。Vert.x就是为构建响应式应用（系统）而设计的。响应式系统这个概念在 [Reactive Manifesto](http://reactivemanifesto.org/) 中有详细的定义。我们在这里总结4个要点：
+(⊙o⊙)哦哦。。。翻译一下，Vert.x是一个在JVM上构建 **响应式** 应用的 **工具集** 。这个定义比较模糊，我们来简单解释一下：**工具集** 意味着Vert.x非常轻量，可以嵌入到你当前的应用中而不需要改变现有的结构；另一个重要的描述是 **响应式** —— Vert.x就是为构建响应式应用（系统）而设计的。响应式系统这个概念在 [Reactive Manifesto](http://reactivemanifesto.org/) 中有详细的定义。我们在这里总结4个要点：
 
 - 响应式的(Responsive)：一个响应式系统需要在 _合理_ 的时间内处理请求。
 - 弹性的(Resilient)：一个响应式系统必须在遇到 _异常_ （崩溃，超时， `500` 错误等等）的时候保持响应的能力，所以它必须要为 _异常处理_ 而设计。
 - 可伸缩的(Elastic)：一个响应式系统必须在不同的负载情况下都要保持响应能力，所以它必须能伸能缩，并且可以利用最少的资源来处理负载。
 - 消息驱动：一个响应式系统的各个组件之间通过 **异步消息传递** 来进行交互。
 
-Vert.x是事件驱动的，同时也是非阻塞的。首先，我们来介绍 **Event Loop** 的概念。Event Loop是一组负责分发和处理事件的线程。注意，我们绝对不能去阻塞Event Loop线程，否则我们的应用就失去了响应能力，因为事件的处理过程被阻塞了。因此当我们在写Vert.x应用的时候，我们要时刻谨记**异步非阻塞模型**而不是传统的阻塞模型。我们将会在下面详细讲解异步非阻塞开发模式。
+Vert.x是**事件驱动的**，同时也是非阻塞的。首先，我们来介绍 **Event Loop** 的概念。Event Loop是一组负责分发和处理事件的线程。注意，我们绝对不能去阻塞Event Loop线程，否则事件的处理过程会被阻塞，我们的应用就失去了响应能力。因此当我们在写Vert.x应用的时候，我们要时刻谨记 **异步非阻塞开发模式** 而不是传统的阻塞开发模式。我们将会在下面详细讲解异步非阻塞开发模式。
 
 ## 我们的应用 - 待办事项服务
 
-我们的应用是一个REST风格的待办事项服务，它非常简单。整个API其实就对应增删改查四种操作。
-
-所以我们可以设计以下的路由：
+我们的应用是一个REST风格的待办事项服务，它非常简单，整个API其实就围绕着 *增删改查* 四种操作。所以我们可以设计以下的路由：
 
 - 添加待办事项: `POST /todos`
 - 获取某一待办事项: `GET /todos/:todoId`
@@ -55,9 +79,9 @@ Vert.x是事件驱动的，同时也是非阻塞的。首先，我们来介绍 *
 - 删除某一待办事项: `DELETE /todos/:todoId`
 - 删除所有待办事项: `DELETE /todos`
 
-注意我们这里不讨论RESTful风格的API的设计规范，因此你也可以用你喜欢的方式去定义路由。
+注意我们这里不讨论REST风格API的设计规范（仁者见仁,智者见智），因此你也可以用你喜欢的方式去定义路由。
 
-下面我们开始我们的项目！
+下面我们开始开发我们的项目！High起来～～～
 
 ## 说干就干！
 
@@ -65,7 +89,7 @@ Vert.x Core提供了一些较为底层的处理HTTP请求的功能，这对于We
 
 ### Gradle配置文件
 
-首先我们先来创建我们的项目。在本教程中我们使用Gradle来作为构建工具，当然你也可以使用其它诸如Maven之类的构建工具。我们的项目目录需要有：
+首先我们先来创建我们的项目。在本教程中我们使用**Gradle**作为构建工具，当然你也可以使用其它诸如Maven之类的构建工具。我们的项目目录里需要有：
 
 1. `src/main/java` 文件夹（源码目录）
 2. `src/test/java` 文件夹（测试目录）
@@ -82,7 +106,7 @@ Vert.x Core提供了一些较为底层的处理HTTP请求的功能，这对于We
 │       └── java
 ```
 
-我们来创建 `build.gradle` 文件：
+我们首先来创建 `build.gradle` 文件，这是Gradle对应的配置文件：
 
 ```groovy
 apply plugin: 'java'
@@ -97,10 +121,10 @@ repositories {
 
 dependencies {
 
-  compile "io.vertx:vertx-core:3.2.1"
-  compile 'io.vertx:vertx-web:3.2.1'
+  compile "io.vertx:vertx-core:3.3.0"
+  compile 'io.vertx:vertx-web:3.3.0'
 
-  testCompile 'io.vertx:vertx-unit:3.2.1'
+  testCompile 'io.vertx:vertx-unit:3.3.0'
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 ```
@@ -110,8 +134,8 @@ dependencies {
 - 我们将 `targetCompatibility` 和 `sourceCompatibility` 这两个值都设为**1.8**，代表目标Java版本是Java 8。这非常重要，因为Vert.x就是基于Java 8构建的。
 - 在`dependencies`中，我们声明了我们需要的依赖。`vertx-core` 和 `vert-web` 用于开发REST API。
 
-**注：** 若国内用户出现用Gradle解析依赖非常缓慢的情况，可以尝试使用开源中国Maven镜像代替默认的镜像。只要在`build.gradle`中配置即可：
-```groovy
+**注：** 若国内用户出现用Gradle解析依赖非常缓慢的情况，可以尝试使用开源中国Maven镜像代替默认的镜像（有的时候速度比较快）。只要在`build.gradle`中配置即可：
+```gradle
 repositories {
     maven {
             url 'http://maven.oschina.net/content/groups/public/'
@@ -158,7 +182,7 @@ public class Todo {
   }
 
   public Todo(JsonObject obj) {
-    TodoConverter.fromJson(obj, this); // 还未生成的时候需要先注释掉，生成过后再取消注释
+    TodoConverter.fromJson(obj, this); // 还未生成Converter的时候需要先注释掉，生成过后再取消注释
   }
 
   public Todo(String jsonStr) {
@@ -279,17 +303,17 @@ public class Todo {
 }
 ```
 
-我们的 `Todo` 实体对象由序号id、标题title、次序order、地址url以及代表待办事项是否完成的一个标识complete。我们可以把它看作是一个简单的Java Bean。它可以被编码成JSON数据，我们在后边会大量使用JSON。同时注意到我们给`Todo`类加上了一个注解：`@DataObject`，这是用于生成JSON转换类的注解。
+我们的 `Todo` 实体对象由序号`id`、标题`title`、次序`order`、地址`url`以及代表待办事项是否完成的一个标识`complete`组成。我们可以把它看作是一个简单的Java Bean。它可以被编码成JSON格式的数据，我们在后边会大量使用JSON（事实上，在Vert.x中JSON非常普遍）。同时注意到我们给`Todo`类加上了一个注解：`@DataObject`，这是用于生成JSON转换类的注解。
 
-[IMPORTANT DataObject注解 | 被 `@DataObject` 注解的实体类需要满足以下条件：拥有一个拷贝构造函数以及一个接受一个 `JsonObject` 对象的构造函数。 ]
+[IMPORTANT DataObject 注解 | 被 `@DataObject` 注解的实体类需要满足以下条件：拥有一个拷贝构造函数以及一个接受一个 `JsonObject` 对象的构造函数。 ]
 
 我们利用Vert.x Codegen来自动生成JSON转换类。我们需要在`build.gradle`中添加依赖：
 
 ```gradle
-compile 'io.vertx:vertx-codegen:3.2.1'
+compile 'io.vertx:vertx-codegen:3.3.0'
 ```
 
-同时，我们需要在`io.vertx.blueprint.todolist.entity`包中添加`package-info.java`文件来指引Vert.x Codegen来生成代码：
+同时，我们需要在`io.vertx.blueprint.todolist.entity`包中添加`package-info.java`文件来指引Vert.x Codegen生成代码：
 
 ```java
 /**
@@ -331,7 +355,7 @@ compileJava {
 }
 ```
 
-这样，每次我们在编译项目的时候，Vert.x Codegen都会自动检测含有`@DataObject`注解的类并且根据配置生成JSON转换类。在本例中，我们应该会得到一个`TodoConverter`类，然后我们可以在`Todo`类中使用它。
+这样，每次我们在编译项目的时候，Vert.x Codegen都会自动检测含有 `@DataObject` 注解的类并且根据配置生成JSON转换类。在本例中，我们应该会得到一个 `TodoConverter` 类，然后我们可以在`Todo`类中使用它。
 
 ### Verticle
 
@@ -361,11 +385,11 @@ public class SingleApplicationVerticle extends AbstractVerticle {
 }
 ```
 
-我们的`SingleApplicationVerticle`类继承了`AbstractVerticle`抽象类。那么什么是 `Verticle` 呢？在Vert.x中，一个`Verticle`代表应用的某一组件。我们可以部署`Verticle`来运行这些组件。如果你了解 **Actor** 模型的话，你会发现它和Actor非常类似。
+我们的`SingleApplicationVerticle`类继承了`AbstractVerticle`抽象类。那么什么是 `Verticle` 呢？在Vert.x中，一个`Verticle`代表应用的某一组件。我们可以通过部署`Verticle`来运行这些组件。如果你了解 **Actor** 模型的话，你会发现它和Actor非常类似。
 
-当`Verticle`被部署的时候，其`start`方法会被调用。我们注意到这里的`start`方法接受一个类型为`Future<Void>`的参数，这代表了这是一个异步的初始化方法。这里的`Future`代表着`Verticle`的初始化过程是否完成。你可以通过调用Future的`complete`方法来代表完成，或者`fail`方法代表过程失败，来通知其他部分此操作完成。
+当`Verticle`被部署的时候，其`start`方法会被调用。我们注意到这里的`start`方法接受一个类型为`Future<Void>`的参数，这代表了这是一个异步的初始化方法。这里的`Future`代表着`Verticle`的初始化过程是否完成。你可以通过调用Future的`complete`方法来代表初始化过程完成，或者`fail`方法代表初始化过程失败。
 
-现在我们`Verticle`的轮廓已经搞好了，那么下一步也就很明了了 - 创建HTTP服务端并且配置路由，处理HTTP请求。
+现在我们`Verticle`的轮廓已经搞好了，那么下一步也就很明了了 - 创建HTTP Client并且配置路由，处理HTTP请求。
 
 ## Vert.x Web与REST API
 
@@ -396,7 +420,6 @@ public void start(Future<Void> future) throws Exception {
     .allowedMethods(allowMethods));
   router.route().handler(BodyHandler.create()); // <3>
 
-
   // TODO:routes
 
   vertx.createHttpServer() // <4>
@@ -414,13 +437,13 @@ public void start(Future<Void> future) throws Exception {
 
 首先我们创建了一个 `Router` 实例 （1）。这里的`Router`代表路由器，相信做过Web开发的开发者们一定不会陌生。路由器负责将对应的HTTP请求分发至对应的处理逻辑（Handler）中。每个`Handler`负责处理请求并且写入回应结果。当HTTP请求到达时，对应的`Handler`会被调用。
 
-然后我们创建了两个`Set`：`allowHeaders`和`allowMethods`，并且我们向里面添加了一些HTTP Header以及HTTP Method，然后我们给路由器绑定了一个`CorsHandler` （2）。`route()`方法（无参数）代表此路由匹配所有请求。这两个`Set`的作用是支持 *CORS*，我们的API需要开启CORS以便配合前端正常工作。有关CORS的详细内容我们就不在这里细说了，详情可以参考[这里](http://enable-cors.org/server.html)。我们这里只需要知道如何开启CORS支持即可。
+然后我们创建了两个`Set`：`allowHeaders`和`allowMethods`，并且我们向里面添加了一些HTTP Header以及HTTP Method，然后我们给路由器绑定了一个`CorsHandler` （2）。`route()`方法（无参数）代表此路由匹配所有请求。这两个`Set`的作用是支持 *CORS*，因为我们的API需要开启CORS以便配合前端正常工作。有关CORS的详细内容我们就不在这里细说了，详情可以参考[这里](http://enable-cors.org/server.html)。我们这里只需要知道如何开启CORS支持即可。
 
 接下来我们给路由器绑定了一个全局的`BodyHandler` （3），它的作用是处理HTTP请求正文并获取其中的数据。比如，在实现添加待办事项逻辑的时候，我们需要读取请求正文中的JSON数据，这时候我们就可以用`BodyHandler`。
 
 最后，我们通过`vertx.createHttpServer()`方法来创建一个HTTP服务端 （4）。注意这个功能是Vert.x Core提供的底层功能之一。然后我们将我们的路由处理器绑定到服务端上，这也是Vert.x Web的核心。你可能不熟悉`router::accept`这样的表示，这是Java 8中的 *方法引用*，它相当于一个分发路由的`Handler`。当有请求到达时，Vert.x会调用`accept`方法。然后我们通过`listen`方法监听8082端口。因为创建服务端的过程可能失败，因此我们还需要给`listen`方法传递一个`Handler`来检查服务端是否创建成功。正如我们前面所提到的，我们可以使用`future.complete`来表示过程成功，或者用`future.fail`来表示过程失败。
 
-到现在为止，我们已经创建好HTTP服务端了，但我们还没有见到我们服务的任何路由呢！不要着急，是时候去定义了！
+到现在为止，我们已经创建好HTTP服务端了，但我们还没有见到任何的路由呢！不要着急，是时候去声明路由了！
 
 ### 配置路由
 
@@ -433,9 +456,9 @@ public void start(Future<Void> future) throws Exception {
 - 删除某一待办事项: `DELETE /todos/:todoId`
 - 删除所有待办事项: `DELETE /todos`
 
-[NOTE 路径参数 | 在URL中，我们可以通过`:name`的形式定义路径参数。当处理请求的时候，Vert.x会自动获取这些路径参数并允许我们访问。拿我们的路由举个例子，`/todos/19` 将 `todoId` 映射为 `19`。]
+[NOTE 路径参数 | 在URL中，我们可以通过`:name`的形式定义路径参数。当处理请求的时候，Vert.x会自动获取这些路径参数并允许我们访问它们。拿我们的路由举个例子，`/todos/19` 将 `todoId` 映射为 `19`。]
 
-首先我们先在 `io.vertx.blueprint.todolist` 包下创建一个`Constants`类用于存储各种全局常量：
+首先我们先在 `io.vertx.blueprint.todolist` 包下创建一个`Constants`类用于存储各种全局常量（当然也可以放到其对应的类中）：
 
 ```java
 package io.vertx.blueprint.todolist;
@@ -467,7 +490,7 @@ router.delete(Constants.API_DELETE).handler(this::handleDeleteOne);
 router.delete(Constants.API_DELETE_ALL).handler(this::handleDeleteAll);
 ```
 
-代码很直观、明了。我们用对应的方法（如`get`,`post`,`patch`等等）将路由路径与路由器绑定，并且我们调用`handler`方法给每个路由绑定上对应的处理逻辑`Handler`，接受的Handler类型为`Handler<RoutingContext>`。这里我们分别绑定了六个方法引用，它们的形式都类似于这样：
+代码很直观、明了。我们用对应的方法（如`get`,`post`,`patch`等等）将路由路径与路由器绑定，并且我们调用`handler`方法给每个路由绑定上对应的`Handler`，接受的`Handler`类型为`Handler<RoutingContext>`。这里我们分别绑定了六个方法引用，它们的形式都类似于这样：
 
 ```java
 private void handleRequest(RoutingContext context) {
@@ -487,7 +510,7 @@ void doAsync(A a, B b, Handler<R> handler);
 Future<R> doAsync(A a, B b);
 ```
 
-其中，`Future` 对象代表着一个操作的结果，这个操作可能还没有进行，可能正在进行，可能成功也可能失败。当操作完成时，`Future`对象会得到对应的结果。我们也可以给`Future`绑定一个`Handler`，当`Future`被赋予结果的时候，此`Handler`会被调用。
+其中，`Future` 对象代表着一个操作的结果，这个操作可能还没有进行，可能正在进行，可能成功也可能失败。当操作完成时，`Future`对象会得到对应的结果。我们也可以通过`setHandler`方法给`Future`绑定一个`Handler`，当`Future`被赋予结果的时候，此`Handler`会被调用。
 
 ```java
 Future<R> future = doAsync(A a, B b);
@@ -500,11 +523,11 @@ future.setHandler(r -> {
 });
 ```
 
-Vert.x中大多数异步方法都是基于Handler的。而在本教程中，这两种模式我们都会接触到。
+Vert.x中大多数异步方法都是基于Handler的。而在本教程中，这两种异步模式我们都会接触到。
 
 ### 待办事项逻辑实现
 
-现在是时候来实现我们的待办事项业务逻辑了！这里我们使用 Redis 作为数据持久化存储。有关Redis的详细介绍请参照[Redis 官方网站](http://redis.io/)。Vert.x给我们提供了一个组件——Vert.x-redis，允许我们以异步的形式操作Redis数据。
+现在是时候来实现我们的待办事项业务逻辑了！这里我们使用 Redis 作为数据持久化存储。有关Redis的详细介绍请参照[Redis 官方网站](http://redis.io/)。Vert.x给我们提供了一个组件—— Vert.x-redis，允许我们以异步的形式操作Redis数据。
 
 [NOTE 如何安装Redis？ | 请参照Redis官方网站上详细的[安装指南](http://redis.io/download#installation)。]
 
@@ -513,16 +536,18 @@ Vert.x中大多数异步方法都是基于Handler的。而在本教程中，这�
 Vert.x Redis允许我们以异步的形式操作Redis数据。我们首先需要在`build.gradle`中添加以下依赖：
 
 ```gradle
-compile 'io.vertx:vertx-redis-client:3.2.1'
+compile 'io.vertx:vertx-redis-client:3.3.0'
 ```
 
-我们可以通过`RedisClient`对象来操作Redis中的数据，因此我们定义了一个类成员`redis`。在使用`RedisClient`之前，我们首先需要与Redis建立连接，并且需要配置（以`RedisOptions`的形式），后边我们再讲需要配置哪些东西。我们来实现 `initData` 方法用于初始化 `RedisClient` 并且测试连接：
+我们通过`RedisClient`对象来操作Redis中的数据，因此我们定义了一个类成员`redis`。在使用`RedisClient`之前，我们首先需要与Redis建立连接，并且需要配置（以`RedisOptions`的形式），后边我们再讲需要配置哪些东西。
+
+我们来实现 `initData` 方法用于初始化 `RedisClient` 并且测试连接：
 
 ```java
 private void initData() {
   RedisOptions config = new RedisOptions()
-      .setHost(config().getString("redis.host", REDIS_HOST))
-      .setPort(config().getInteger("redis.port", REDIS_PORT));
+      .setHost(config().getString("redis.host", REDIS_HOST)) // redis host
+      .setPort(config().getInteger("redis.port", REDIS_PORT)); // redis port
 
   this.redis = RedisClient.create(vertx, config); // create redis client
 
@@ -541,7 +566,7 @@ private void initData() {
 
 #### 存储格式
 
-我们知道，Redis支持各种格式的数据，并且支持多种方式存储（如`list`、`hash`等）。这里我们将我们的待办事项存储在 *哈希表(map，hash)* 中。我们使用待办事项的`id`作为key，JSON格式的待办事项数据作为value。同时，我们的哈希表本身也要有个key，我们把它命名为 *VERT_TODO*，并且存储到`Constants`类中：
+我们知道，Redis支持各种格式的数据，并且支持多种方式存储（如`list`、`hash map`等）。这里我们将我们的待办事项存储在 *哈希表(map)* 中。我们使用待办事项的`id`作为key，JSON格式的待办事项数据作为value。同时，我们的哈希表本身也要有个key，我们把它命名为 *VERT_TODO*，并且存储到`Constants`类中：
 
 ```java
 public static final String REDIS_TODO_KEY = "VERT_TODO";
@@ -549,9 +574,9 @@ public static final String REDIS_TODO_KEY = "VERT_TODO";
 
 正如我们之前提到的，我们利用了生成的JSON数据转换类来实现`Todo`实体与JSON数据之间的转换（通过几个构造函数），在后面实现待办事项服务的时候可以广泛利用。
 
-#### 获取/获取所有
+#### 获取/获取所有待办事项
 
-我们来实现获取待办事项的逻辑。正如我们之前所提到的，我们的处理逻辑方法需要接受一个`RoutingContext`类型的参数并且不返回值。我们先来实现获取某一待办事项的逻辑方法(`handleGetTodo`)：
+我们首先来实现获取待办事项的逻辑。正如我们之前所提到的，我们的处理逻辑方法需要接受一个`RoutingContext`类型的参数。我们看一下获取某一待办事项的逻辑方法(`handleGetTodo`)：
 
 ```java
 private void handleGetTodo(RoutingContext context) {
@@ -566,7 +591,7 @@ private void handleGetTodo(RoutingContext context) {
           sendError(404, context.response());
         else {
           context.response()
-            .putHeader("content-type", "application/json; charset=utf-8")
+            .putHeader("content-type", "application/json")
             .end(result); // (4)
         }
       } else
@@ -586,13 +611,13 @@ private void sendError(int statusCode, HttpServerResponse response) {
 
 这里面，`end`方法是非常重要的。只有我们调用`end`方法时，对应的HTTP Response才能被发送回客户端。
 
-再回到`handleGetTodo`方法中。如果我们成功获取到了`todoId`，我们可以通过`hget`操作从Redis中获取对应的待办事项 (3)。`hget`代表通过key从对应的哈希表中获取对应的value。我们来看一下`hget`函数的定义：
+再回到`handleGetTodo`方法中。如果我们成功获取到了`todoId`，我们可以通过`hget`操作从Redis中获取对应的待办事项 (3)。`hget`代表通过key从对应的哈希表中获取对应的value，我们来看一下`hget`函数的定义：
 
 ```java
 RedisClient hget(String key, String field, Handler<AsyncResult<String>> handler);
 ```
 
-第一个参数`key`对应哈希表的名，第二个参数`field`代表待办事项的key，第三个参数代表当获取操作成功时对应的回调。在`Handler`中，我们首先检查操作是否成功，如果不成功就返回`503`错误。如果成功了，我们就可以获取操作的结果了。结果是`null`的话，说明Redis中没有对应的待办事项，因此我们返回`404 Not Found`代表不存在。如果结果存在，那么我们就可以通过`end`方法将其写入response中 (4)。注意到我们所有的RESTful API都返回JSON格式的数据，所以我们将`content-type`头设为`JSON`。
+第一个参数`key`对应哈希表的key，第二个参数`field`代表待办事项的key，第三个参数代表当获取操作成功时对应的回调。在`Handler`中，我们首先检查操作是否成功，如果不成功就返回`503`错误。如果成功了，我们就可以获取操作的结果了。结果是`null`的话，说明Redis中没有对应的待办事项，因此我们返回`404 Not Found`代表不存在。如果结果存在，那么我们就可以通过`end`方法将其写入response中 (4)。注意到我们所有的RESTful API都返回JSON格式的数据，所以我们将`content-type`头设为`JSON`。
 
 获取所有待办事项的逻辑`handleGetAll`与`handleGetTodo`大体上类似，但实现上有些许不同：
 
@@ -630,7 +655,7 @@ private void handleCreateTodo(RoutingContext context) {
         if (res.succeeded())
           context.response()
             .setStatusCode(201)
-            .putHeader("content-type", "application/json; charset=utf-8")
+            .putHeader("content-type", "application/json")
             .end(encoded);
         else
           sendError(503, context.response());
@@ -708,7 +733,7 @@ private void handleUpdateTodo(RoutingContext context) {
 
 这就是更新待办事项的逻辑～要有耐心哟，我们马上就要见到胜利的曙光了～下面我们来实现删除待办事项的逻辑。
 
-#### 删除/删除全部
+#### 删除/删除全部待办事项
 
 删除待办事项的逻辑非常简单。我们利用`hdel`函数来删除某一待办事项，用`del`函数删掉所有待办事项（实际上是直接把那个哈希表给删了）。如果删除操作成功，返回`204 No Content` 状态。
 
@@ -739,7 +764,7 @@ private void handleDeleteAll(RoutingContext context) {
 
 ### 将应用与Vert.x Launcher一起打包
 
-要通过Vert.x Launcher来运行Verticle，我们首先需要在`build.gradle`中配置一下：
+要通过Vert.x Launcher来运行Verticle，我们需要在`build.gradle`中配置一下：
 
 ```gradle
 jar {
@@ -833,7 +858,7 @@ import java.util.Optional;
 
 public interface TodoService {
 
-  Future<Boolean> initData(); // init the data (or table)
+  Future<Boolean> initData(); // 初始化数据（或数据库）
 
   Future<Boolean> insert(Todo todo);
 
@@ -854,7 +879,7 @@ public interface TodoService {
 
 既然我们已经设计好我们的异步服务接口了，让我们来重构原先的Verticle吧！
 
-### 重构！
+### 开始重构！
 
 我们创建一个新的Verticle。在 `io.vertx.blueprint.todolist.verticles` 包中创建 `TodoVerticle` 类，并编写以下代码：
 
@@ -994,7 +1019,6 @@ public class TodoVerticle extends AbstractVerticle {
 ```java
 private void initData() {
   final String serviceType = config().getString("service.type", "redis");
-  System.out.println("[INFO]Service Type: " + serviceType);
   switch (serviceType) {
     case "jdbc":
       service = new JdbcTodoService(vertx, config());
@@ -1141,17 +1165,15 @@ private void handleDeleteAll(RoutingContext context) {
 
 是不是和之前的Verticle很相似呢？这里我们还封装了两个`Handler`生成器：`resultHandler` 和 `deleteResultHandler`。这两个生成器封装了一些重复的代码，可以减少代码量。
 
-嗯。。。我们的新Verticle实现好了，那么是时候去实现具体的业务逻辑了。这里我们会实现两个版本的业务逻辑，分别对应两种存储：**Redis** 和 **MySQL**。
+嗯。。。我们的新Verticle写好了，那么是时候去实现具体的业务逻辑了。这里我们会实现两个版本的业务逻辑，分别对应两种存储：**Redis** 和 **MySQL**。
 
 ### Vert.x-Redis版本的待办事项服务
 
-之前我们已经实现过一遍Redis版本的服务了，因此你应该对其非常熟悉了。这里我们仅仅解释一个 `update` 方法，其它的实现都非常类似，代码可以在[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master)上浏览。
+之前我们已经实现过一遍Redis版本的服务了，因此你应该对其非常熟悉了。这里我们仅仅解释一个 `update` 方法，其它的实现都非常类似，代码可以在[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/src/main/java/io/vertx/blueprint/todolist/service/RedisTodoService.java)上浏览。
 
-#### 组合Future
+#### Monadic Future
 
-回想一下我们之前写的更新待办事项的逻辑，我们会发现它其实是由两个独立的操作组成 - `get` 和 `insert`（对于Redis来说）。所以呢，我们可不可以复用`getCertain` 和 `insert` 这两个方法？当然了！因为`Future`是可组合的，因此我们可以将这两个方法返回的`Future`组合到一起。是不是非常神奇呢？我们来编写此方法：
-
-[NOTE 提示 | 到目前为止，`Future`对象的`map`和`compose`函数只能在Vert.x 3.3.0版本使用，因此如果要使用这两个函数，你需要改变依赖：`compile "io.vertx:vertx-core:3.3.0-SNAPSHOT"`. ]
+回想一下我们之前写的更新待办事项的逻辑，我们会发现它其实是由两个独立的操作组成 - `get` 和 `insert`（对于Redis来说）。所以呢，我们可不可以复用 `getCertain` 和 `insert` 这两个方法？当然了！因为`Future`是可组合的，因此我们可以将这两个方法返回的`Future`组合到一起。是不是非常方便呢？我们来编写此方法：
 
 ```java
 @Override
@@ -1170,15 +1192,16 @@ public Future<Todo> update(String todoId, Todo newTodo) {
 
 首先我们调用了`getCertain`方法，此方法返回一个`Future<Optional<Todo>>`对象。同时我们使用`compose`函数将此方法返回的`Future`与另一个`Future`进行组合（1），其中`compose`函数接受一个`T => Future<U>`类型的lambda。然后我们接着检查旧的待办事项是否存在，如果存在的话，我们将新的待办事项与旧的待办事项相融合，然后更新待办事项。注意到`insert`方法返回`Future<Boolean>`类型的`Future`，因此我们还需要对此Future的结果做变换，这个变换的过程是通过`map`函数实现的（2）。`map`函数接受一个`T => U`类型的lambda。如果旧的待办事项不存在，我们返回一个包含null的`Future`（3）。最后我们返回组合后的`Future`对象。
 
-[NOTE `Future` 的本质 | 在函数式编程中，`Future` 实际上是一种 `Monad`。有关`Monad`的理论较为复杂，这里不进行阐述。你可以把它看作是一个可以进行变换(`map`)和组合(`compose`)的包装对象。 ]
+[NOTE `Future` 的本质 | 在函数式编程中，`Future` 实际上是一种 `Monad`。有关`Monad`的理论较为复杂，这里就不进行阐述了。你可以简单地把它看作是一个可以进行变换(`map`)和组合(`compose`)的包装对象。我们把这种特性叫做 **Monadic**。 ]
 
-完成啦～下面来实现MySQL版本的待办事项服务。
+
+下面来实现MySQL版本的待办事项服务。
 
 ### Vert.x-JDBC版本的待办事项服务
 
 #### JDBC ++ 异步
 
-我们使用Vert.x-JDBC和MySQL来实现JDBC版本的待办事项服务。我们知道，数据库操作都是阻塞操作，很可能会占用不少时间。而Vert.x-JDBC提供了一种异步操作数据库的方法，很神奇吧？所以，在传统JDBC代码下我们要执行SQL语句需要这样：
+我们使用Vert.x-JDBC和MySQL来实现JDBC版本的待办事项服务。我们知道，数据库操作都是阻塞操作，很可能会占用不少时间。而Vert.x-JDBC提供了一种异步操作数据库的模式，很神奇吧？所以，在传统JDBC代码下我们要执行SQL语句需要这样：
 
 ```java
 String SQL = "SELECT * FROM todo";
@@ -1201,7 +1224,7 @@ connection.query(SQL, result -> {
 首先我们需要向`build.gradle`文件中添加依赖：
 
 ```groovy
-compile 'io.vertx:vertx-jdbc-client:3.2.1'
+compile 'io.vertx:vertx-jdbc-client:3.3.0'
 compile 'mysql:mysql-connector-java:6.0.2'
 ```
 
@@ -1270,7 +1293,7 @@ CREATE TABLE `todo` (
 )
 ```
 
-我们把要用到的数据库语句都存到服务类中：
+我们把要用到的数据库语句都存到服务类中（这里我们就不讨论如何设计表以及写SQL了）：
 
 ```java
 private static final String SQL_CREATE = "CREATE TABLE IF NOT EXISTS `todo` (\n" +
@@ -1285,8 +1308,7 @@ private static final String SQL_INSERT = "INSERT INTO `todo` " +
 private static final String SQL_QUERY = "SELECT * FROM todo WHERE id = ?";
 private static final String SQL_QUERY_ALL = "SELECT * FROM todo";
 private static final String SQL_UPDATE = "UPDATE `todo`\n" +
-  "SET\n" +
-  "`id` = ?,\n" +
+  "SET `id` = ?,\n" +
   "`title` = ?,\n" +
   "`completed` = ?,\n" +
   "`order` = ?,\n" +
@@ -1356,7 +1378,7 @@ public Future<Boolean> initData() {
 }
 ```
 
-此方法仅会在Verticle初始化时被调用，如果`todo`表不存在的话就创建一下。注意，最后一定要关闭数据库连接。
+此方法仅会在Verticle初始化时被调用，如果`todo`表不存在的话就创建一下。注意，**最后一定要关闭数据库连接**。
 
 下面我们来实现插入逻辑方法：
 
@@ -1413,9 +1435,11 @@ public Future<Optional<Todo>> getCertain(String todoID) {
 
 其余的几个方法：`getAll`, `update`, `delete` 以及 `deleteAll`都遵循上面的模式，这里就不多说了。你可以在[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/src/main/java/io/vertx/blueprint/todolist/service/JdbcTodoService.java)上浏览完整的源代码。
 
+重构完毕，我们来写待办事项服务对应的配置，然后再来运行！
+
 ### 再来运行！
 
-我们在项目的根目录下创建一个 `config` 文件夹作为配置文件夹。我们先创建一个`config_jdbc.json`文件作为 `jdbc`类型服务配置：
+首先我们在项目的根目录下创建一个 `config` 文件夹作为配置文件夹。我们在其中创建一个`config_jdbc.json`文件作为 `jdbc` 类型服务的配置：
 
 ```json
 {
@@ -1428,7 +1452,7 @@ public Future<Optional<Todo>> getCertain(String todoID) {
 }
 ```
 
-你需要根据自己的情况替换掉上述配置文件中相应的内容。
+你需要根据自己的情况替换掉上述配置文件中相应的内容(如 *JDBC URL*，*JDBC 驱动* 等)。
 
 再建一个`config.json`文件作为`redis`类型服务的配置（其它的项就用默认配置好啦）：
 
@@ -1438,7 +1462,7 @@ public Future<Optional<Todo>> getCertain(String todoID) {
 }
 ```
 
-构建文件也需要更新咯～直接给出最终的`build.gradle`文件：
+我们的构建文件也需要更新咯～这里直接给出最终的`build.gradle`文件：
 
 ```gradle
 plugins {
@@ -1448,7 +1472,7 @@ plugins {
 version '1.0'
 
 ext {
-  vertxVersion = "3.2.1"
+  vertxVersion = "3.3.0"
 }
 
 jar {
@@ -1462,9 +1486,6 @@ jar {
 }
 
 repositories {
-  maven { // snapshot repo, will be removed after 3.3 version released
-    url "https://oss.sonatype.org/content/repositories/snapshots"
-  }
   jcenter()
   mavenCentral()
   mavenLocal()
@@ -1497,7 +1518,7 @@ compileJava {
 }
 
 dependencies {
-  compile ("io.vertx:vertx-core:3.3.0-SNAPSHOT")
+  compile ("io.vertx:vertx-core:${vertxVersion}")
   compile ("io.vertx:vertx-web:${vertxVersion}")
   compile ("io.vertx:vertx-jdbc-client:${vertxVersion}")
   compile ("io.vertx:vertx-redis-client:${vertxVersion}")
@@ -1514,13 +1535,13 @@ task wrapper(type: Wrapper) {
 }
 ```
 
-好啦～打开终端，构建我们的应用：
+好啦好啦，迫不及待了吧？～打开终端，构建我们的应用：
 
 ```bash
 gradle build
 ```
 
-我们可以运行Redis版本的待办事项服务：
+然后我们可以运行Redis版本的待办事项服务：
 
 ```bash
 java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config.json
@@ -1532,15 +1553,17 @@ java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config.js
 java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config_jdbc.json
 ```
 
-同样地，我们也可以使用[todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec)来测试我们的API。由于我们的API设计没有改变，因此测试应该会成功。
+同样地，我们也可以使用[todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec)来测试我们的API。由于我们的API设计没有改变，因此测试结果应该不会有变化。
 
-我们也提供了Docker Compose镜像的构建文件，可以直接通过Docker来运行我们的服务。你可以在仓库的根目录下看到相应的配置文件，并通过`docker-compose up`来运行。
+我们也提供了待办事项服务对应的Docker Compose镜像构建文件，可以直接通过Docker来运行我们的待办事项服务。你可以在仓库的根目录下看到[相应的配置文件](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/docker-compose.yml)，并通过 `docker-compose up -- build` 命令来构建并运行。
 
-## 终！
+![Docker Compose](img/vbptds-docker-compose-running.png)
 
-哈哈，恭喜你完成了整个待办事项服务～在整个教程中，你应该学到了很多关于 `Vert.x Web`、 `Vert.x Redis` 和 `Vert.x JDBC` 的开发知识。当然，最重要的是，你会对Vert.x的 **异步开发模型** 有着更深的理解和领悟。
+## 哈哈，成功了！
 
-更多关于Vert.x的文章，请参考[Blog on Vert.x Website](http://vertx.io/blog/archives/)。
+哈哈，恭喜你完成了整个待办事项服务，是不是很开心？～在整个教程中，你应该学到了很多关于 `Vert.x Web`、 `Vert.x Redis` 和 `Vert.x JDBC` 的开发知识。当然，最重要的是，你会对Vert.x的 **异步开发模式** 有了更深的理解和领悟。
+
+更多关于Vert.x的文章，请参考[Blog on Vert.x Website](http://vertx.io/blog/archives/)。官网的资料是最全面的 :-)
 
 ## 来自其它框架？
 
@@ -1566,13 +1589,13 @@ public class TodoController {
 }
 ```
 
-在Spring Boot中，我们使用`@RequestMapping`注解来配置路由，而在Vert.x Web中，我们是通过`Router`对象来配置路由的。并且因为Vert.x Web是异步的，我们会给每个路由绑定一个处理器（`Handler`）来处理对应的请求。
+在Spring Boot中，我们使用 `@RequestMapping` 注解来配置路由，而在Vert.x Web中，我们是通过 `Router` 对象来配置路由的。并且因为Vert.x Web是异步的，我们会给每个路由绑定一个处理器（`Handler`）来处理对应的请求。
 
-另外，在Vert.x Web中，我们使用`end`方法来向客户端发送HTTP Response。相对地，在Spring Boot中我们直接在每个方法中返回结果作为Response。
+另外，在Vert.x Web中，我们使用 `end` 方法来向客户端发送HTTP response。相对地，在Spring Boot中我们直接在每个方法中返回结果作为response。
 
 ### 来自Play Framework 2
 
-如果之前用过Play Framework 2的话，你一定会非常熟悉异步开发的模式。在Play Framework 2中，我们在`routes`文件中定义路由，类似于这样：
+如果之前用过Play Framework 2的话，你一定会非常熟悉异步开发模式。在Play Framework 2中，我们在 `routes` 文件中定义路由，类似于这样：
 
 ```scala
 GET     /todos/:todoId      controllers.TodoController.handleGetCertain(todoId: Int)
@@ -1584,4 +1607,56 @@ GET     /todos/:todoId      controllers.TodoController.handleGetCertain(todoId: 
 router.get("/todos/:todoId").handler(this::handleGetCertain);
 ```
 
-`this::handleGetCertain`是处理对应请求的方法引用（在Scala里可以把它看作是一个函数）
+`this::handleGetCertain`是处理对应请求的方法引用（在Scala里可以把它看作是一个函数）。
+
+Play Framework 2中的异步开发模式是基于`Future`的。每一个路由处理函数都返回一个`Action`对象（实质上是一个类型为`Request[A] => Result`的函数），我们在`Action.apply`(或`Action.async`)闭包中编写我们的处理逻辑，类似于这样：
+
+```scala
+def handleGetCertain(todoId: Int): Action[AnyContent] = Action.async {
+    service.getCertain(todoId) map { // 服务返回的类型是 `Future[Option[Todo]]`
+        case Some(res) =>
+            Ok(Json.toJson(res))
+        case None =>
+            NotFound()
+    }
+}
+```
+
+而在Vert.x Web中，异步开发模式基本上都是基于回调的（当然也可以用Vert.x RxJava）。我们可以这么写：
+
+```java
+private void handleCreateTodo(RoutingContext context) {
+    String todoId = context.request().getParam("todoId"); // 获取Path Variable
+    service.getCertain(todoId).setHandler(r -> { // 服务返回的类型是 `Future<Optional<Todo>>`
+        if (r.succeeded) {
+            Optional<Todo> res = r.result;
+            if (res.isPresent()) {
+                context.response()
+                    .putHeader("content-type", "application/json")
+                    .end(Json.encodePrettily(res));
+            } else {
+                sendError(404, context.response()); // NotFound(404)
+            }
+        } else {
+            sendError(503, context.response());
+        }
+    });
+}
+```
+
+### 想要使用其它持久化存储框架？
+
+你可能想在Vert.x中使用其它的持久化存储框架或库，比如MyBatis ORM或者Jedis，这当然可以啦！Vert.x允许开发者整合任何其它的框架和库，但是像MyBatis ORM这种框架都是阻塞型的，可能会阻塞Event Loop线程，因此我们需要利用`blockingHandler`方法去执行阻塞的操作：
+
+```java
+router.get("/todos/:todoId").blockingHandler(routingContext -> {
+            String todoID = routingContext.request().getParam("todoId");
+            Todo res = service.fetchBlocking(todoID); // 阻塞型
+
+            // 做一些微小的工作
+
+            routingContext.next();
+        });
+```
+
+Vert.x会使用Worker线程去执行`blockingHandler`方法(或者Worker Verticles)中的操作，因此不会阻塞Event Loop线程。

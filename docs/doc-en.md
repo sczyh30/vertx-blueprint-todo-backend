@@ -27,14 +27,14 @@
     - [Refactor!](#refactor)
     - [Implement our service with Vert.x-Redis](#implement-our-service-with-vertx-redis)
     - [Implement our service with Vert.x-JDBC](#implement-our-service-with-vertx-jdbc)
-    - [Run!](#run)
+    - [Run again!](#run)
 - [Cheers!](#cheers)
 - [From other frameworks?](#from-other-frameworks)
 
 
 ## Preface
 
-In this tutorial, we are going to use Vert.x to develop a RESTful web service - Todo Backend. This service provide a simple RESTful API in the form of a todo list, which we could add or complete todo stuff.
+In this tutorial, we are going to use Vert.x to develop a RESTful web service - Todo Backend. This service provide a simple RESTful API in the form of a todo list, where we could add or complete todo stuff.
 
 What you are going to learn:
 
@@ -44,7 +44,7 @@ What you are going to learn:
 - How to make use of **asynchronous development model**
 - How to use persistence such as *Redis* and *MySQL* with the help of Vert.x data access components
 
-This is the first part of Vert.x Blueprint. The code developed in this tutorial is available on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master).
+This is the first part of **Vert.x Blueprint Project**. The code developed in this tutorial is available on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master).
 
 ## Introduction to Vert.x
 
@@ -121,10 +121,10 @@ repositories {
 
 dependencies {
 
-  compile "io.vertx:vertx-core:3.2.1"
-  compile 'io.vertx:vertx-web:3.2.1'
+  compile "io.vertx:vertx-core:3.3.0"
+  compile 'io.vertx:vertx-web:3.3.0'
 
-  testCompile 'io.vertx:vertx-unit:3.2.1'
+  testCompile 'io.vertx:vertx-unit:3.3.0'
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 ```
@@ -298,7 +298,7 @@ Our `Todo` entity consists of id, title, order, url and a flag indicates if it i
 Here we make use of *Vert.x Codegen* to automatically generate JSON converter. To use Vert.x Codegen, we need add a dependency:
 
 ```gradle
-compile 'io.vertx:vertx-codegen:3.2.1'
+compile 'io.vertx:vertx-codegen:3.3.0'
 ```
 
 And we need a `package-info.java` file in the package in order to instruct Vert.x Codegen to generate code:
@@ -523,7 +523,7 @@ Now It's time to implement our todo logic! Here we will use *Redis* as the backe
 Vert.x-redis allows data to be saved, retrieved, searched for, and deleted in a Redis **asynchronously**. To use the Vert.x Redis client, we should add the following dependency to the *dependencies* section of `build.gradle`:
 
 ```gradle
-compile 'io.vertx:vertx-redis-client:3.2.1'
+compile 'io.vertx:vertx-redis-client:3.3.0'
 ```
 
 We can access to Redis by `RedisClient` object. So we define a `RedisClient` object as a class object. Before we use `RedisClient`, we should connect to Redis and there is a config required. This config is provided in the form of `RedisOptions`. Let's implement `initData` method to init the `RedisClient` and test the connection:
@@ -1158,13 +1158,11 @@ Since our new verticle has been done, it's time to implement the services. We wi
 
 ### Implement our service with Vert.x-Redis
 
-Since you have implemented single version verticle with Redis just now, you are supposed to get accustomed to Vert.x-Redis. Here we just explain one `update` method, the others are similar and the code is on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master).
+Since you have implemented single version verticle with Redis just now, you are supposed to get accustomed to Vert.x-Redis. Here we just explain one `update` method, the others are similar and the code is on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/src/main/java/io/vertx/blueprint/todolist/service/RedisTodoService.java).
 
-#### Combining futures
+#### Monadic future
 
 Recall the logic of *update* we wrote, we will discover that this is a composite of two actions - *get* and *insert*. So can we make use of existing `getCertain` and `insert` method? Of course! Because `Future` is composable. You can compose two or more futures. Sounds wonderful! Let's write:
-
-[NOTE Notice | The method `map` and `compose` is only available in Vert.x 3.3.0+, so you are supposed to change the dependency with `compile "io.vertx:vertx-core:3.3.0-SNAPSHOT"`. And add the maven repo `https://oss.sonatype.org/content/repositories/snapshots` to the `repositories` field. ]
 
 ```java
 @Override
@@ -1183,7 +1181,7 @@ public Future<Todo> update(String todoId, Todo newTodo) {
 
 First we called `this.getCertain` method, which returns `Future<Optional<Todo>>`. Simultaneously we use `compose` operator to combine this future with another future (1). The `compose` operator takes a `Function<T, Future<U>>` as parameter, which, actually is a lambda takes input with type `T` and returns a `Future` with type `U` (`T` and `U` can be the same). Then we check whether the old todo exists. If so, we merge the old todo with the new todo, and then update the todo. Notice that `insert` method returns `Future<Boolean>`, so we should transform it into `Future<Todo>` by `map` operator (2). The `map` operator takes a `Function<T, U>` as parameter, which, actually is a lambda takes type `T` and returns type `U`. We then return the mapped `Future`. If not exists, we return a succeeded future with a null result (3). Finally return the composed `Future`.
 
-[NOTE The essence of `Future` | In functional programming, `Future` is actually a kind of `Monad`. This is a complicated concept, and you can just (actually more complicated!) refer it as objects that can be composed(`compose` or `flatMap`) and transformed(`map`). ]
+[NOTE The essence of `Future` | In functional programming, `Future` is actually a kind of `Monad`. This is a complicated concept, and you can just (actually more complicated!) refer it as objects that can be composed(`compose` or `flatMap`) and transformed(`map`). This feature is often called **Monadic**. ]
 
 Our redis service is done~ Next let's implement our jdbc service.
 
@@ -1214,7 +1212,7 @@ The asynchronous interactions are efficient as it avoids waiting for the result.
 The first thing is to add some dependencies in our `build.gradle` file:
 
 ```groovy
-compile 'io.vertx:vertx-jdbc-client:3.2.1'
+compile 'io.vertx:vertx-jdbc-client:3.3.0'
 compile 'mysql:mysql-connector-java:6.0.2'
 ```
 
@@ -1283,7 +1281,7 @@ CREATE TABLE `todo` (
 )
 ```
 
-Let's store the sql sentence in our service:
+Let's store the sql sentence in our service(we do not discuss how to design db and write sql here):
 
 ```java
 private static final String SQL_CREATE = "CREATE TABLE IF NOT EXISTS `todo` (\n" +
@@ -1298,8 +1296,7 @@ private static final String SQL_INSERT = "INSERT INTO `todo` " +
 private static final String SQL_QUERY = "SELECT * FROM todo WHERE id = ?";
 private static final String SQL_QUERY_ALL = "SELECT * FROM todo";
 private static final String SQL_UPDATE = "UPDATE `todo`\n" +
-  "SET\n" +
-  "`id` = ?,\n" +
+  "SET `id` = ?,\n" +
   "`title` = ?,\n" +
   "`completed` = ?,\n" +
   "`order` = ?,\n" +
@@ -1309,7 +1306,7 @@ private static final String SQL_DELETE = "DELETE FROM `todo` WHERE `id` = ?";
 private static final String SQL_DELETE_ALL = "DELETE FROM `todo`";
 ```
 
-Now that all are prepared ok, let's implement our JDBC todo service~
+Now that all SQLs are prepared ok, let's implement our JDBC todo service~
 
 #### Implement JDBC service
 
@@ -1463,7 +1460,7 @@ plugins {
 version '1.0'
 
 ext {
-  vertxVersion = "3.2.1"
+  vertxVersion = "3.3.0"
 }
 
 jar {
@@ -1529,19 +1526,19 @@ task wrapper(type: Wrapper) {
 }
 ```
 
-Let's now build our application:
+Can't wait yeah?~ Let's now build our application:
 
 ```bash
 gradle build
 ```
 
-Run our application with Redis:
+Then we can run our application with Redis:
 
 ```bash
 java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config.json
 ```
 
-Run our application with MySQL:
+We can also run our application with MySQL:
 
 ```bash
 java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config_jdbc.json
@@ -1549,7 +1546,9 @@ java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config_jd
 
 We could use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec) to test our todo API. As we didn’t change the API, the test should run smoothly.
 
-And we also provide a Docker Compose config file that could help us run our service with Docker Compose. You can see it in the repo.
+And we also provide a [Docker Compose config file](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/docker-compose.yml) that could help us run our service with Docker Compose. You can see it in the repo.
+
+![Docker Compose](img/vbptds-docker-compose-running.png)
 
 ## Cheers!
 
@@ -1559,7 +1558,7 @@ To learn more about Vert.x, you can visit [Blog on Vert.x Website](http://vertx.
 
 ## From other frameworks?
 
-Well, you might have used other frameworks before, like Spring Boot. In this section, I will use analogy to introduce the concepts about Vert.x Web.
+Well, you might have used other frameworks before, like *Spring Boot*. In this section, I will use analogy to introduce the concepts about Vert.x Web.
 
 ### From Spring Boot/Spring MVC
 
@@ -1624,7 +1623,7 @@ private void handleCreateTodo(RoutingContext context) {
             Optional<Todo> res = r.result;
             if (res.isPresent()) {
                 context.response()
-                    .putHeader("content-type", "application/json; charset=utf-8")
+                    .putHeader("content-type", "application/json")
                     .end(Json.encodePrettily(res)); // write `Result` to response with Ok(200)
             } else {
                 sendError(404, context.response()); // NotFound(404)
