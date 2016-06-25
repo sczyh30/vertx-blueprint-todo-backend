@@ -1182,9 +1182,9 @@ public Future<Todo> update(String todoId, Todo newTodo) {
     if (old.isPresent()) {
       Todo fnTodo = old.get().merge(newTodo);
       return this.insert(fnTodo)
-        .map(r -> r ? fnTodo : null); (2)
+        .map(r -> r ? fnTodo : null); // (2)
     } else {
-      return Future.succeededFuture(); (3)
+      return Future.succeededFuture(); // (3)
     }
   });
 }
@@ -1192,7 +1192,7 @@ public Future<Todo> update(String todoId, Todo newTodo) {
 
 首先我们调用了`getCertain`方法，此方法返回一个`Future<Optional<Todo>>`对象。同时我们使用`compose`函数将此方法返回的`Future`与另一个`Future`进行组合（1），其中`compose`函数接受一个`T => Future<U>`类型的lambda。然后我们接着检查旧的待办事项是否存在，如果存在的话，我们将新的待办事项与旧的待办事项相融合，然后更新待办事项。注意到`insert`方法返回`Future<Boolean>`类型的`Future`，因此我们还需要对此Future的结果做变换，这个变换的过程是通过`map`函数实现的（2）。`map`函数接受一个`T => U`类型的lambda。如果旧的待办事项不存在，我们返回一个包含null的`Future`（3）。最后我们返回组合后的`Future`对象。
 
-[NOTE `Future` 的本质 | 在函数式编程中，`Future` 实际上是一种 `Monad`。有关`Monad`的理论较为复杂，这里就不进行阐述了。你可以简单地把它看作是一个可以进行变换(`map`)和组合(`compose`)的包装对象。我们把这种特性叫做 **Monadic**。 ]
+[NOTE `Future` 的本质 | 在函数式编程中，`Future` 实际上是一种 `Monad`。有关`Monad`的理论较为复杂，这里就不进行阐述了。你可以简单地把它看作是一个可以进行变换(`map`)和组合(`compose`)的包装对象。我们把这种特性叫做 **monadic**。 ]
 
 
 下面来实现MySQL版本的待办事项服务。
@@ -1487,8 +1487,6 @@ jar {
 
 repositories {
   jcenter()
-  mavenCentral()
-  mavenLocal()
 }
 
 task annotationProcessing(type: JavaCompile, group: 'build') {
@@ -1518,14 +1516,14 @@ compileJava {
 }
 
 dependencies {
-  compile ("io.vertx:vertx-core:${vertxVersion}")
-  compile ("io.vertx:vertx-web:${vertxVersion}")
-  compile ("io.vertx:vertx-jdbc-client:${vertxVersion}")
-  compile ("io.vertx:vertx-redis-client:${vertxVersion}")
-  compile ("io.vertx:vertx-codegen:${vertxVersion}")
+  compile("io.vertx:vertx-core:${vertxVersion}")
+  compile("io.vertx:vertx-web:${vertxVersion}")
+  compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
+  compile("io.vertx:vertx-redis-client:${vertxVersion}")
+  compile("io.vertx:vertx-codegen:${vertxVersion}")
   compile 'mysql:mysql-connector-java:6.0.2'
 
-  testCompile ("io.vertx:vertx-unit:${vertxVersion}")
+  testCompile("io.vertx:vertx-unit:${vertxVersion}")
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 

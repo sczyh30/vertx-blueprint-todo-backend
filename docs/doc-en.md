@@ -26,10 +26,14 @@
     - [Asynchronous service using Future](#asynchronous-service-using-future)
     - [Refactor!](#refactor)
     - [Implement our service with Vert.x-Redis](#implement-our-service-with-vertx-redis)
+        - [Monadic future](#monadic-future)
     - [Implement our service with Vert.x-JDBC](#implement-our-service-with-vertx-jdbc)
     - [Run again!](#run)
 - [Cheers!](#cheers)
 - [From other frameworks?](#from-other-frameworks)
+    - [From Spring Boot/Spring MVC](#from-spring-bootspring-mvc)
+    - [From Play Framework 2](#from-play-framework-2)
+    - [Want to use other persistence frameworks?](#want-to-use-other-persistence-frameworks)
 
 
 ## Preface
@@ -108,15 +112,14 @@ The directory tree will be like this:
 
 Let's create the `build.gradle` file:
 
-```groovy
+```gradle
 apply plugin: 'java'
 
 targetCompatibility = 1.8
 sourceCompatibility = 1.8
 
 repositories {
-  mavenCentral()
-  mavenLocal()
+  jcenter()
 }
 
 dependencies {
@@ -1171,9 +1174,9 @@ public Future<Todo> update(String todoId, Todo newTodo) {
     if (old.isPresent()) {
       Todo fnTodo = old.get().merge(newTodo);
       return this.insert(fnTodo)
-        .map(r -> r ? fnTodo : null); (2)
+        .map(r -> r ? fnTodo : null); // (2)
     } else {
-      return Future.succeededFuture(); (3)
+      return Future.succeededFuture(); // (3)
     }
   });
 }
@@ -1181,7 +1184,7 @@ public Future<Todo> update(String todoId, Todo newTodo) {
 
 First we called `this.getCertain` method, which returns `Future<Optional<Todo>>`. Simultaneously we use `compose` operator to combine this future with another future (1). The `compose` operator takes a `Function<T, Future<U>>` as parameter, which, actually is a lambda takes input with type `T` and returns a `Future` with type `U` (`T` and `U` can be the same). Then we check whether the old todo exists. If so, we merge the old todo with the new todo, and then update the todo. Notice that `insert` method returns `Future<Boolean>`, so we should transform it into `Future<Todo>` by `map` operator (2). The `map` operator takes a `Function<T, U>` as parameter, which, actually is a lambda takes type `T` and returns type `U`. We then return the mapped `Future`. If not exists, we return a succeeded future with a null result (3). Finally return the composed `Future`.
 
-[NOTE The essence of `Future` | In functional programming, `Future` is actually a kind of `Monad`. This is a complicated concept, and you can just (actually more complicated!) refer it as objects that can be composed(`compose` or `flatMap`) and transformed(`map`). This feature is often called **Monadic**. ]
+[NOTE The essence of `Future` | In functional programming, `Future` is actually a kind of `Monad`. This is a complicated concept, and you can just (actually more complicated!) refer it as objects that can be composed(`compose` or `flatMap`) and transformed(`map`). This feature is often called **monadic**. ]
 
 Our redis service is done~ Next let's implement our jdbc service.
 
@@ -1474,12 +1477,7 @@ jar {
 }
 
 repositories {
-  maven { // snapshot repo, will be removed after 3.3 version released
-    url "https://oss.sonatype.org/content/repositories/snapshots"
-  }
   jcenter()
-  mavenCentral()
-  mavenLocal()
 }
 
 task annotationProcessing(type: JavaCompile, group: 'build') {
@@ -1509,14 +1507,14 @@ compileJava {
 }
 
 dependencies {
-  compile ("io.vertx:vertx-core:3.3.0-SNAPSHOT")
-  compile ("io.vertx:vertx-web:${vertxVersion}")
-  compile ("io.vertx:vertx-jdbc-client:${vertxVersion}")
-  compile ("io.vertx:vertx-redis-client:${vertxVersion}")
-  compile ("io.vertx:vertx-codegen:${vertxVersion}")
+  compile("io.vertx:vertx-core:${vertxVersion}")
+  compile("io.vertx:vertx-web:${vertxVersion}")
+  compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
+  compile("io.vertx:vertx-redis-client:${vertxVersion}")
+  compile("io.vertx:vertx-codegen:${vertxVersion}")
   compile 'mysql:mysql-connector-java:6.0.2'
 
-  testCompile ("io.vertx:vertx-unit:${vertxVersion}")
+  testCompile("io.vertx:vertx-unit:${vertxVersion}")
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 
