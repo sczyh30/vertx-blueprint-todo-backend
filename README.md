@@ -8,12 +8,16 @@ and various persistence(e.g. Redis or MySQL).
 ## Introduction
 
 This repository is an introduction to basic Vert.x web RESTful service development.
-Detailed documents(both in Chinese and English) are provided below.
+Detailed tutorials (both in Chinese and English) are provided below.
 
 ## Detailed Document
 
-- [English Version](docs/doc-en.md)
-- [中文文档](docs/doc-zh-cn.md)
+- [English Version](http://sczyh30.github.io/vertx-blueprint-todo-backend/)
+- [中文文档](http://sczyh30.github.io/vertx-blueprint-todo-backend/cn/)
+
+## Want to improve this blueprint ?
+
+Forks and PRs are definitely welcome !
 
 ## Build
 
