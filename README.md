@@ -1,6 +1,8 @@
-# vertx-blueprint-todo-backend
+# Vert.x Blueprint - Todo Backend
 
-Vert.x blueprint application - A todo-backend implementation using Vert.x 
+[![Travis Build Status](https://travis-ci.org/sczyh30/vertx-blueprint-todo-backend.svg?branch=master)](https://travis-ci.org/sczyh30/vertx-blueprint-todo-backend)
+
+Vert.x blueprint application - A todo-backend implementation using Vert.x
 and various persistence(e.g. Redis or MySQL).
 
 ## Introduction
@@ -18,9 +20,9 @@ Detailed documents(both in Chinese and English) are provided below.
 To build the code:
 
     gradle build
-    
+
 Run service locally:
-    
+
 - with Redis: `java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config.json`
 - with MySQL: `java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config_jdbc.json`
 
