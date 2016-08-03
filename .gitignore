@@ -1,7 +1,0 @@
-# IntelliJ project files
-.idea
-*.iml
-# build files
-.gradle
-build
-.vertx
