@@ -1,42 +1,4 @@
-# Vert.x Blueprint - Todo-Backend Tutorial
-
-## Table of contents
-
-- [Preface](#preface)
-- [Introduction to Vert.x](#introduction-to-vertx)
-- [Our application - Todo service](#our-application---todo-service)
-- [Let's Start!](#lets-start)
-    - [Gradle build file](#gradle-build-file)
-    - [Todo entity](#todo-entity)
-    - [Verticle](#verticle)
-- [REST API with Vert.x Web](#rest-api-with-vertx-web)
-    - [Create HTTP server with route](#create-http-server-with-route)
-    - [Configure the routes](#configure-the-routes)
-    - [Asynchronous Pattern](#asynchronous-pattern)
-    - [Todo logic implementation](#todo-logic-implementation)
-        - [Vert.x Redis](#vertx-redis)
-        - [Store format](#store-format)
-        - [Get/Get all](#getget-all)
-        - [Create Todo](#create-todo)
-        - [Update](#update)
-        - [Remove/Remove all](#removeremove-all)
-    - [Package with Vert.x Launcher](#package-with-vertx-launcher)
-    - [Run our service](#run-our-service)
-- [Refactor: Decouple controller and service](#decouple-controller-and-service)
-    - [Asynchronous service using Future](#asynchronous-service-using-future)
-    - [Refactor!](#refactor)
-    - [Implement our service with Vert.x-Redis](#implement-our-service-with-vertx-redis)
-        - [Monadic future](#monadic-future)
-    - [Implement our service with Vert.x-JDBC](#implement-our-service-with-vertx-jdbc)
-    - [Run again!](#run)
-- [Cheers!](#cheers)
-- [From other frameworks?](#from-other-frameworks)
-    - [From Spring Boot/Spring MVC](#from-spring-bootspring-mvc)
-    - [From Play Framework 2](#from-play-framework-2)
-    - [Want to use other persistence frameworks?](#want-to-use-other-persistence-frameworks)
-
-
-## Preface
+# Preface
 
 In this tutorial, we are going to use Vert.x to develop a RESTful web service - Todo Backend. This service provide a simple RESTful API in the form of a todo list, where we could add or complete todo stuff.
 
@@ -50,7 +12,7 @@ What you are going to learn:
 
 This is the first part of **Vert.x Blueprint Project**. The code developed in this tutorial is available on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master).
 
-## Introduction to Vert.x
+# Introduction to Vert.x
 
 Welcome to the world of Vert.x! When you first heard about Vert.x, you must be wondering: what's this?
 
@@ -68,7 +30,7 @@ Another significant word is **reactive**. Vert.x is made to build reactive syste
 
 Vert.x is event driven and non-blocking. First, let's introduce **Event Loop** thread. Event loops are a group of threads that are responsible for dispatching and handling events in `Handler`. Every event is delivered and handled in an event loop. Notice, we **must never block the event loop** or our application will not be responsive as the process of handling events will be blocked. When building Vert.x applications, we should keep the asynchronous and non-blocking model in mind, rather than traditional blocking model. We will see the detail in the following sections.
 
-## Our application - Todo service
+# Our application - Todo service
 
 Our application is a todo list REST service. It's very simple. The entire API consists of about 5 distinct operations (create a todo, view a todo, modify a todo, list all todos, delete all todos), which correspond to CRUD operations.
 
@@ -85,11 +47,11 @@ The level of *REST* of the API is not the topic of this post, so you could als
 
 Now let's start!
 
-## Let's Start!
+# Let's Start!
 
 Vert.x core provides a fairly low level set of functionality for handling HTTP, and for some applications that will be sufficient. That's the main reason behind [Vert.x Web](http://vertx.io/docs/vertx-web/java). Vert.x-Web builds on Vert.x core to provide a richer set of functionality for building real web applications, more easily.
 
-### Gradle build file
+## Gradle build file
 
 First, let's create the project. In this tutorial we use Gradle as build tool, but you can use any other build tools you prefer, such as Maven and SBT. Basically, you need a directory with:
 
@@ -139,7 +101,7 @@ You might not be familiar with Gradle, that doesn't matter. Let's explain that:
 
 As we created `build.gradle`, let's start writing code~
 
-### Todo entity
+## Todo entity
 
 First we need to create our data object - the `Todo` entity. Create the `src/main/java/io/vertx/blueprint/todolist/entity/Todo.java` file and write:
 
@@ -348,7 +310,7 @@ compileJava {
 
 Then every time we compile our code, the Vert.x Codegen will automatically generate a converter class for class with `@DataObject` annotation. Here, you will get a class `TodoConverter` and you can use it in `Todo` data object.
 
-### Verticle
+## Verticle
 
 Then we start writing our verticle. Create the `src/main/java/io/vertx/blueprint/todolist/verticles/SingleApplicationVerticle.java ` file and write following content:
 
@@ -382,9 +344,9 @@ The `start` method will be called when verticle is deployed. And notice this `st
 
 So next step is to create a http server and configure the routes to handle HTTP requests.
 
-## REST API with Vert.x Web
+# REST API with Vert.x Web
 
-### Create HTTP server with route
+## Create HTTP server with route
 
 Let's change the `start` method with:
 
@@ -443,7 +405,7 @@ As we mentioned above, we use `future.complete` to notify success and `future.fa
 
 So far, we have created the HTTP server. But you haven't see routes about our service yeah? It's time to declare them!
 
-### Configure the routes
+## Configure the routes
 
 Now let's declare our todo service routes. As we mentioned above, we designed our route as follows:
 
@@ -490,7 +452,7 @@ router.delete(Constants.API_DELETE_ALL).handler(this::handleDeleteAll);
 
 The code is clear. We use corresponding method(e.g. `get`, `post`, `delete` ...) to bind the path to the route. And we call `handler` method to attach certain handler to the route. Note the type of handler is `Handler<RoutingContext>` and here we pass six method references to the `handler` method, each of which takes a `RoutingContext` parameter and returns void. We'll implement these six handler methods soon.
 
-### Asynchronous Pattern
+## Asynchronous Pattern
 
 As we mentioned above, Vert.x is asynchronous and non-blocking. Every asynchronous method takes a `Handler` parameter as the callback and when the process is done, the handler will be called. There is also an equivalent pattern that returns a `Future` object:
 
@@ -515,13 +477,13 @@ future.setHandler(r -> {
 
 Most of Vert.x APIs are handler-based pattern. We will see both of the two patterns below.
 
-### Todo logic implementation
+## Todo logic implementation
 
 Now It's time to implement our todo logic! Here we will use *Redis* as the backend persistence. [Redis](http://redis.io/) is an open source, in-memory data structure store, used as database, cache and message broker. It is often referred to as a data structure server since keys can contain strings, hashes, lists, sets and sorted sets. And fortunately, Vert.x provides us Vert.x-redis, a component that allows us to process data with Redis.
 
 [NOTE How to install and run Redis? | Please follow the concrete instruction on [Redis Website](http://redis.io/download#installation). ]
 
-#### Vert.x Redis
+### Vert.x Redis
 
 Vert.x-redis allows data to be saved, retrieved, searched for, and deleted in a Redis **asynchronously**. To use the Vert.x Redis client, we should add the following dependency to the *dependencies* section of `build.gradle`:
 
@@ -552,7 +514,7 @@ private void initData() {
 
 When we initialize the verticle, we first invoke `initData` method so that the redis client could be created.
 
-#### Store format
+### Store format
 
 As Redis support various format of data, We store our todo objects in a *Map*.
 Every data in the map has key and value. Here we use `id` as key and todo entity in **JSON** format as value.
@@ -565,7 +527,7 @@ public static final String REDIS_TODO_KEY = "VERT_TODO";
 
 As we mentioned above, we have implemented method(or constructor) that converts between `Todo` entity and `JsonObject` with the help of generated `TodoConverter` class. Thus, we could make use of them in the following code.
 
-#### Get/Get all
+### Get/Get all
 
 Let's implement the logic of getting todo objects. As we mentioned above, the hanlder method should take a `RoutingContext` as parameter and return void. Let's implement `handleGetTodo` method first:
 
@@ -632,7 +594,7 @@ Here we use `hvals` operation (1). `hvals` returns all values in the hash stored
 
 Here we use an approach with functional style. Because the `JsonArray` class implements `Iterable<Object>` interface (behave like `List` yeah?), we could convert it to `Stream` using `stream` method. The `Stream` here is not the IO stream, but data flow. Then we transform every value(in string format) to `Todo` entity, with the help of `map` operator. We don't explain `map` operator in detail but, it's really important in functional programming. After mapping, we collect the `Stream` in the form of `List<Todo>`. Now we could use `Json.encodePrettily` method to convert the list to JSON string. Finally we write the encoded result to response as before (3).
 
-#### Create Todo
+### Create Todo
 
 After having done two APIs above, you are more familiar with Vert.x~ Now let's implement the logic of creating todo :
 
@@ -679,7 +641,7 @@ And then we encode again to JSON string format using `Json.encodePrettily` metho
 
 In case of the invalid request body, we should catch `DecodeException`. Once the request body is invalid, we send response with `400 Bad Request` status code.
 
-#### Update
+### Update
 
 Well, if you want to change your plan, you may need to update the todo entity. Let's implement it. The logic of updating todo is a little more complicated:
 
@@ -724,7 +686,7 @@ A little longer yet? Let's see the code. First we retrieve the path parameter `t
 
 So this is the update process. Be patient, we have almost done it~ Let's implement the logic of removing todos.
 
-#### Remove/Remove all
+### Remove/Remove all
 
 The logic of removing todos is much more easier. We use `hdel` operator to delete one certain todo entity and `del` operator to delete the entire todo map. If the operation is successful, write response with `204 No Content` status.
 
@@ -755,7 +717,7 @@ private void handleDeleteAll(RoutingContext context) {
 
 Wow! Our todo verticle is completed! Excited! But how to run our verticle? We need to *deploy* it. Fortunately, Vert.x provides us a launcher class - Vert.x Launcher, which could help deploy verticles and set configurations.
 
-### Package with Vert.x Launcher
+## Package with Vert.x Launcher
 
 To build a jar package with Vert.x Launcher, add the following content to the `build.gradle` file:
 
@@ -775,7 +737,7 @@ jar {
 
 We set `Main-Class` attribute with `io.vertx.core.Launcher` so that we could make use of Vert.x Launcher to deploy verticle. And we set `Main-Verticle` attribute with the verticle class we want to deploy.
 
-### Run our service
+## Run our service
 
 Now it's time to run our REST service! First we should start Redis service:
 
@@ -794,11 +756,11 @@ If there are no problems, you will see `Succeeded in deploying verticle`. The mo
 
 Input `http://127.0.0.1:8082/todos`:
 
-![](img/todo-test-input.png)
+![](https://github.com/sczyh30/vertx-blueprint-todo-backend/raw/master/docs/img/todo-test-input.png)
 
 Test result:
 
-![TodoBackend Test Result](img/todo-test-result.png)
+![TodoBackend Test Result](https://github.com/sczyh30/vertx-blueprint-todo-backend/raw/master/docs/img/todo-test-result.png)
 
 Of course, we could also visit the link directly or use other tools(e.g. `curl`):
 
@@ -827,11 +789,11 @@ sczyh30@sczyh30-workshop:~$ curl http://127.0.0.1:8082/todos
 
 Vert.x Launcher also accepts json file as the verticle config using `-conf`. We'll see it soon.
 
-## Decouple controller and service
+# Decouple controller and service
 
 Yeah~ Our todo service has been running correctly. But review the `SingleApplicationVerticle` class, you will find it very messy. The controller and service mix together, causing the class big. Besides, it's not convenient to extend our service if we mix services with the controller. Thus, we need to decouple the controller and service.
 
-### Asynchronous service using Future
+## Asynchronous service using Future
 
 So let's design our service. As we mentioned above, our service needs to be asynchronous, so it should either takes a `Handler` parameter or returns `Future`. But imagine, if there are many handlers compositing, You will fall into *callback hell*, which is terrible. Here, we design our todo service using `Future`.
 
@@ -870,7 +832,7 @@ Notice that the `getCertain` method returns a `Future<Optional<Todo>>`. What's a
 
 Now that we have designed our new asynchronous service interface, let's refactor the verticle!
 
-### Refactor!
+## Refactor!
 
 We create a new verticle to implement that. Create the `src/main/java/io/vertx/blueprint/todolist/verticles/TodoVerticle.java ` file and write:
 
@@ -1159,11 +1121,11 @@ Quite similar! Here we encapsulate two handler generator: `resultHandler` and `d
 
 Since our new verticle has been done, it's time to implement the services. We will implement two services using different persistence. One is our familiar *Redis*, the other is *MySQL*.
 
-### Implement our service with Vert.x-Redis
+## Implement our service with Vert.x-Redis
 
 Since you have implemented single version verticle with Redis just now, you are supposed to get accustomed to Vert.x-Redis. Here we just explain one `update` method, the others are similar and the code is on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/src/main/java/io/vertx/blueprint/todolist/service/RedisTodoService.java).
 
-#### Monadic future
+### Monadic future
 
 Recall the logic of *update* we wrote, we will discover that this is a composite of two actions - *get* and *insert*. So can we make use of existing `getCertain` and `insert` method? Of course! Because `Future` is composable. You can compose two or more futures. Sounds wonderful! Let's write:
 
@@ -1188,9 +1150,9 @@ First we called `this.getCertain` method, which returns `Future<Optional<Todo>>`
 
 Our redis service is done~ Next let's implement our jdbc service.
 
-### Implement our service with Vert.x-JDBC
+## Implement our service with Vert.x-JDBC
 
-#### JDBC ++ Asynchronous
+### JDBC ++ Asynchronous
 
 We are going to implement our jdbc version service using Vert.x-JDBC and MySQL. As we know, reading or writing data from database is an blocking action, which may take a long time. We must wait until the result is available, which is terrible. Fortunately, Vert.x-JDBC is **asynchronous**. That means we could interact with a database throught a JDBC driver asynchronously. So when you want to do:
 
@@ -1210,7 +1172,7 @@ connection.query(SQL, result -> {
 
 The asynchronous interactions are efficient as it avoids waiting for the result. The handler will be called once the result is available.
 
-#### Dependencies
+### Dependencies
 
 The first thing is to add some dependencies in our `build.gradle` file:
 
@@ -1221,7 +1183,7 @@ compile 'mysql:mysql-connector-java:6.0.2'
 
 The first dependency provides `vertx-jdbc-client`, while the other provides the MySQL JDBC driver. If you want to use other databases, just change the second dependency to your database driver.
 
-#### Initialize the JDBC client
+### Initialize the JDBC client
 
 In Vert.x-JDBC, we get a database connection from `JDBCClient` object; So let's see how to create a `JDBCClient` instance.
 
@@ -1311,7 +1273,7 @@ private static final String SQL_DELETE_ALL = "DELETE FROM `todo`";
 
 Now that all SQLs are prepared ok, let's implement our JDBC todo service~
 
-#### Implement JDBC service
+### Implement JDBC service
 
 In order to interact with database, we need to acquire connection from `JDBCClient` like this:
 
@@ -1428,7 +1390,7 @@ Here after the statement having been executed, we got a `ResultSet` instance, wh
 
 The `getAll`, `update`, `delete` and `deleteAll` methods follow the same pattern. You can look up the code on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/src/main/java/io/vertx/blueprint/todolist/service/JdbcTodoService.java).
 
-### Run!
+## Run!
 
 Let's create a `config` directory in the root directory. For `jdbc` type, we create a json config file `config_jdbc.json`:
 
@@ -1546,19 +1508,19 @@ We could use [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-
 
 And we also provide a [Docker Compose config file](https://github.com/sczyh30/vertx-blueprint-todo-backend/blob/master/docker-compose.yml) that could help us run our service with Docker Compose. You can see it in the repo.
 
-![Docker Compose](img/vbptds-docker-compose-running.png)
+![Docker Compose](https://github.com/sczyh30/vertx-blueprint-todo-backend/raw/master/docs/img/vbptds-docker-compose-running.png)
 
-## Cheers!
+# Cheers!
 
 Congratulations, you have finished the todo backend service~ In this long tutorial, you have learned the usage of `Vert.x Web`, `Vert.x Redis` and `Vert.x JDBC`, and most importantly, the **asynchronous development model** of Vert.x.
 
 To learn more about Vert.x, you can visit [Blog on Vert.x Website](http://vertx.io/blog/archives/).
 
-## From other frameworks?
+# From other frameworks?
 
 Well, you might have used other frameworks before, like *Spring Boot*. In this section, I will use analogy to introduce the concepts about Vert.x Web.
 
-### From Spring Boot/Spring MVC
+## From Spring Boot/Spring MVC
 
 In Spring Boot, we usually configure the routes and handle the http requests in the Controller:
 
@@ -1582,7 +1544,7 @@ In Spring Boot, we configure the route using the annotation `@RequestMapping`. I
 
 As for sending response, we use `end` method to write HTTP response in Vert.x Web. In Spring Boot, we send response to client simply by returning the result directly in the controller method.
 
-### From Play Framework 2
+## From Play Framework 2
 
 If you are from Play Framework 2, you must be familiar with its asynchronous programming model. In Play Framework 2, we configure the route on the `routes` file, like the pattern `method path controller`:
 
@@ -1635,7 +1597,7 @@ private void handleCreateTodo(RoutingContext context) {
 
 In Vert.x, We write result to response directly by `end` method rather than encapsulate it with `Result`.
 
-### Want to use other persistence frameworks?
+## Want to use other persistence frameworks?
 
 You may want to use other persistence frameworks or libraries in Vert.x application, e.g. Mybatis ORM or Jedis. That's OK. You can use anything you want in Vert.x. But notice, ORM framework like Mybatis is synchronous and blocking, so the process could block the event loop. Thus, we need to use blocking handlers(`blockingHandler` method) to handle blocking requests:
 
