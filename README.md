@@ -3,12 +3,18 @@
 [![Travis Build Status](https://travis-ci.org/sczyh30/vertx-blueprint-todo-backend.svg?branch=master)](https://travis-ci.org/sczyh30/vertx-blueprint-todo-backend)
 
 Vert.x blueprint application - A todo-backend implementation using Vert.x
-and various persistence(e.g. Redis or MySQL).
+and various persistence (e.g. Redis or MySQL).
 
-## Introduction
+This repository is an introduction to basic Vert.x web RESTful service development. Detailed tutorials (both in Chinese and English) are provided below.
 
-This repository is an introduction to basic Vert.x web RESTful service development.
-Detailed tutorials (both in Chinese and English) are provided below.
+## Contents
+
+- What is Vert.x and its basic design
+- What is and how to use `Verticle`
+- How to develop a REST API using Vert.x Web
+- How to make use of **asynchronous development model**
+- Future-based reactive asynchronous pattern
+- How to use persistence such as *Redis* and *MySQL* with the help of Vert.x data access components
 
 ## Detailed Document
 
@@ -23,7 +29,7 @@ Forks and PRs are definitely welcome !
 
 To build the code:
 
-    gradle build
+    gradle build -x test
 
 Run service locally:
 
@@ -46,3 +52,7 @@ Run with Docker Compose:
 Test result of the RESTful API (using [todo-backend-js-spec](https://github.com/TodoBackend/todo-backend-js-spec)):
 
 ![RESTful API Test Result](docs/img/vert-api-test.png)
+
+You can also run it with [the todo backend frontend client](http://www.todobackend.com/client/index.html):
+
+![Todo Frontend](docs/img/vertx-todobackend-ui.png)
