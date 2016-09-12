@@ -417,6 +417,7 @@ Now let's declare our todo service routes. As we mentioned above, we designed ou
 - Delete all todo entities: `DELETE /todos`
 
 > Path Parameter
+
 > In the URL, We could define path parameters using placeholder `:` followed by the parameter name. When handling a matching request, Vert.x will automatically fetch the corresponding parameter. For example, `/todos/19` maps `todoId` to `19`.
 
 First we create a `Constants` class in the root package(`io.vertx.blueprint.todolist`) and store the path of routes:
@@ -482,7 +483,9 @@ Most of Vert.x APIs are handler-based pattern. We will see both of the two patte
 
 Now It's time to implement our todo logic! Here we will use *Redis* as the backend persistence. [Redis](http://redis.io/) is an open source, in-memory data structure store, used as database, cache and message broker. It is often referred to as a data structure server since keys can contain strings, hashes, lists, sets and sorted sets. And fortunately, Vert.x provides us Vert.x-redis, a component that allows us to process data with Redis.
 
-[NOTE How to install and run Redis? | Please follow the concrete instruction on [Redis Website](http://redis.io/download#installation). ]
+> How to install and run Redis?
+
+> Please follow the concrete instruction on [Redis Website](http://redis.io/download#installation).
 
 ### Vert.x Redis
 
@@ -638,7 +641,9 @@ This `wrapObject` method is of vital importance as the id of todos could not be 
 
 And then we encode again to JSON string format using `Json.encodePrettily` method (2). Next we insert the todo entity into map with `hset` operator (3). If the action is successful, write response with status `201` (4).
 
-[NOTE Status 201 ? | As you can see, we have set the response status to `201`. It means `CREATED`, and is the generally used in REST API that create an entity. By default Vert.x Web is setting the status to `200` meaning `OK`.]
+> Status 201 ?
+
+> As you can see, we have set the response status to `201`. It means `CREATED`, and is the generally used in REST API that create an entity. By default Vert.x Web is setting the status to `200` meaning `OK`.
 
 In case of the invalid request body, we should catch `DecodeException`. Once the request body is invalid, we send response with `400 Bad Request` status code.
 
@@ -1148,6 +1153,7 @@ public Future<Todo> update(String todoId, Todo newTodo) {
 First we called `this.getCertain` method, which returns `Future<Optional<Todo>>`. Simultaneously we use `compose` operator to combine this future with another future (1). The `compose` operator takes a `Function<T, Future<U>>` as parameter, which, actually is a lambda takes input with type `T` and returns a `Future` with type `U` (`T` and `U` can be the same). Then we check whether the old todo exists. If so, we merge the old todo with the new todo, and then update the todo. Notice that `insert` method returns `Future<Boolean>`, so we should transform it into `Future<Todo>` by `map` operator (2). The `map` operator takes a `Function<T, U>` as parameter, which, actually is a lambda takes type `T` and returns type `U`. We then return the mapped `Future`. If not exists, we return a succeeded future with a null result (3). Finally return the composed `Future`.
 
 > The essence of `Future`
+
 > In functional programming, `Future` is actually a kind of `Monad`. This is a complicated concept, and you can just (actually more complicated!) refer it as objects that can be composed(`compose` or `flatMap`) and transformed(`map`). This feature is often called **monadic**.
 
 Our redis service is done~ Next let's implement our JDBC service.

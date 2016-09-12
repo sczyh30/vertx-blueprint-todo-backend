@@ -254,6 +254,7 @@ public class Todo {
 我们的 `Todo` 实体对象由序号`id`、标题`title`、次序`order`、地址`url`以及代表待办事项是否完成的一个标识`complete`组成。我们可以把它看作是一个简单的Java Bean。它可以被编码成JSON格式的数据，我们在后边会大量使用JSON（事实上，在Vert.x中JSON非常普遍）。同时注意到我们给`Todo`类加上了一个注解：`@DataObject`，这是用于生成JSON转换类的注解。
 
 > `@DataObject` 注解
+
 > 被 `@DataObject` 注解的实体类需要满足以下条件：拥有一个拷贝构造函数以及一个接受一个 `JsonObject` 对象的构造函数。
 
 我们利用Vert.x Codegen来自动生成JSON转换类。我们需要在`build.gradle`中添加依赖：
@@ -406,6 +407,7 @@ public void start(Future<Void> future) throws Exception {
 - 删除所有待办事项: `DELETE /todos`
 
 > 路径参数
+
 > 在URL中，我们可以通过`:name`的形式定义路径参数。当处理请求的时候，Vert.x会自动获取这些路径参数并允许我们访问它们。拿我们的路由举个例子，`/todos/19` 将 `todoId` 映射为 `19`。
 
 首先我们先在 `io.vertx.blueprint.todolist` 包下创建一个`Constants`类用于存储各种全局常量（当然也可以放到其对应的类中）：
@@ -480,6 +482,7 @@ Vert.x中大多数异步方法都是基于Handler的。而在本教程中，这�
 现在是时候来实现我们的待办事项业务逻辑了！这里我们使用 Redis 作为数据持久化存储。有关Redis的详细介绍请参照[Redis 官方网站](http://redis.io/)。Vert.x给我们提供了一个组件—— Vert.x-redis，允许我们以异步的形式操作Redis数据。
 
 > 如何安装Redis？
+
 > 请参照Redis官方网站上详细的[安装指南](http://redis.io/download#installation)。
 
 ### Vert.x Redis
@@ -1145,6 +1148,7 @@ public Future<Todo> update(String todoId, Todo newTodo) {
 首先我们调用了`getCertain`方法，此方法返回一个`Future<Optional<Todo>>`对象。同时我们使用`compose`函数将此方法返回的`Future`与另一个`Future`进行组合（1），其中`compose`函数接受一个`T => Future<U>`类型的lambda。然后我们接着检查旧的待办事项是否存在，如果存在的话，我们将新的待办事项与旧的待办事项相融合，然后更新待办事项。注意到`insert`方法返回`Future<Boolean>`类型的`Future`，因此我们还需要对此Future的结果做变换，这个变换的过程是通过`map`函数实现的（2）。`map`函数接受一个`T => U`类型的lambda。如果旧的待办事项不存在，我们返回一个包含null的`Future`（3）。最后我们返回组合后的`Future`对象。
 
 > `Future` 的本质
+
 > 在函数式编程中，`Future` 实际上是一种 `Monad`。有关`Monad`的理论较为复杂，这里就不进行阐述了。你可以简单地把它看作是一个可以进行变换(`map`)和组合(`compose`)的包装对象。我们把这种特性叫做 **monadic**。
 
 
