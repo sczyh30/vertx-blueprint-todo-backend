@@ -14,6 +14,8 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -33,6 +35,8 @@ import java.util.function.Consumer;
  */
 public class TodoVerticle extends AbstractVerticle {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(TodoVerticle.class);
+
   private static final String HOST = "0.0.0.0";
   private static final int PORT = 8082;
 
@@ -40,7 +44,7 @@ public class TodoVerticle extends AbstractVerticle {
 
   private void initData() {
     final String serviceType = config().getString("service.type", "redis");
-    System.out.println("[INFO]Service Type: " + serviceType);
+    LOGGER.info("Service Type: " + serviceType);
     switch (serviceType) {
       case "jdbc":
         service = new JdbcTodoService(vertx, config());
@@ -55,7 +59,7 @@ public class TodoVerticle extends AbstractVerticle {
 
     service.initData().setHandler(res -> {
         if (res.failed()) {
-          System.err.println("[Error] Persistence service is not running!");
+          LOGGER.error("Persistence service is not running!");
           res.cause().printStackTrace();
         }
       });

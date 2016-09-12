@@ -10,7 +10,7 @@
 - **异步编程风格** 的应用
 - 如何通过 Vert.x 的各种组件来进行数据的存储操作（如 *Redis* 和 *MySQL*）
 
-本教程是**Vert.x 蓝图系列**的第一篇教程，对应的Vert.x版本为**3.3.0**。本教程中的完整代码已托管至[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master)。
+本教程是 **Vert.x 蓝图系列** 的第一篇教程，对应的Vert.x版本为**3.3.3**。本教程中的完整代码已托管至[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master)。
 
 # 踏入Vert.x之门
 
@@ -25,7 +25,7 @@
 - 可伸缩的(Elastic)：一个响应式系统必须在不同的负载情况下都要保持响应能力，所以它必须能伸能缩，并且可以利用最少的资源来处理负载。
 - 消息驱动：一个响应式系统的各个组件之间通过 **异步消息传递** 来进行交互。
 
-Vert.x是**事件驱动的**，同时也是非阻塞的。首先，我们来介绍 **Event Loop** 的概念。Event Loop是一组负责分发和处理事件的线程。注意，我们绝对不能去阻塞Event Loop线程，否则事件的处理过程会被阻塞，我们的应用就失去了响应能力。因此当我们在写Vert.x应用的时候，我们要时刻谨记 **异步非阻塞开发模式** 而不是传统的阻塞开发模式。我们将会在下面详细讲解异步非阻塞开发模式。
+Vert.x是 **事件驱动的**，同时也是非阻塞的。首先，我们来介绍 **Event Loop** 的概念。Event Loop是一组负责分发和处理事件的线程。注意，我们绝对不能去阻塞Event Loop线程，否则事件的处理过程会被阻塞，我们的应用就失去了响应能力。因此当我们在写Vert.x应用的时候，我们要时刻谨记 **异步非阻塞开发模式** 而不是传统的阻塞开发模式。我们将会在下面详细讲解异步非阻塞开发模式。
 
 # 我们的应用 - 待办事项服务
 
@@ -74,16 +74,15 @@ targetCompatibility = 1.8
 sourceCompatibility = 1.8
 
 repositories {
-  mavenCentral()
-  mavenLocal()
+  jcenter()
 }
 
 dependencies {
 
-  compile "io.vertx:vertx-core:3.3.0"
-  compile 'io.vertx:vertx-web:3.3.0'
+  compile "io.vertx:vertx-core:3.3.3"
+  compile 'io.vertx:vertx-web:3.3.3'
 
-  testCompile 'io.vertx:vertx-unit:3.3.0'
+  testCompile 'io.vertx:vertx-unit:3.3.3'
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 ```
@@ -254,15 +253,16 @@ public class Todo {
 
 我们的 `Todo` 实体对象由序号`id`、标题`title`、次序`order`、地址`url`以及代表待办事项是否完成的一个标识`complete`组成。我们可以把它看作是一个简单的Java Bean。它可以被编码成JSON格式的数据，我们在后边会大量使用JSON（事实上，在Vert.x中JSON非常普遍）。同时注意到我们给`Todo`类加上了一个注解：`@DataObject`，这是用于生成JSON转换类的注解。
 
-[IMPORTANT DataObject 注解 | 被 `@DataObject` 注解的实体类需要满足以下条件：拥有一个拷贝构造函数以及一个接受一个 `JsonObject` 对象的构造函数。 ]
+> `@DataObject` 注解
+> 被 `@DataObject` 注解的实体类需要满足以下条件：拥有一个拷贝构造函数以及一个接受一个 `JsonObject` 对象的构造函数。
 
 我们利用Vert.x Codegen来自动生成JSON转换类。我们需要在`build.gradle`中添加依赖：
 
 ```gradle
-compile 'io.vertx:vertx-codegen:3.3.0'
+compileOnly 'io.vertx:vertx-codegen:3.3.3'
 ```
 
-同时，我们需要在`io.vertx.blueprint.todolist.entity`包中添加`package-info.java`文件来指引Vert.x Codegen生成代码：
+由于Vert.x Codegen仅在编译期生成代码，因此我们这里使用了`compileOnly`(相当于Maven中的`provided`。需要Gradle 2.12及以上版本)。同时，我们需要在`io.vertx.blueprint.todolist.entity`包中添加`package-info.java`文件来指引Vert.x Codegen生成代码：
 
 ```java
 /**
@@ -279,7 +279,7 @@ Vert.x Codegen本质上是一个注解处理器(annotation processing tool)，�
 ```gradle
 task annotationProcessing(type: JavaCompile, group: 'build') {
   source = sourceSets.main.java
-  classpath = configurations.compile
+  classpath = configurations.compile + configurations.compileOnly
   destinationDir = project.file('src/main/generated')
   options.compilerArgs = [
     "-proc:only",
@@ -405,7 +405,8 @@ public void start(Future<Void> future) throws Exception {
 - 删除某一待办事项: `DELETE /todos/:todoId`
 - 删除所有待办事项: `DELETE /todos`
 
-[NOTE 路径参数 | 在URL中，我们可以通过`:name`的形式定义路径参数。当处理请求的时候，Vert.x会自动获取这些路径参数并允许我们访问它们。拿我们的路由举个例子，`/todos/19` 将 `todoId` 映射为 `19`。]
+> 路径参数
+> 在URL中，我们可以通过`:name`的形式定义路径参数。当处理请求的时候，Vert.x会自动获取这些路径参数并允许我们访问它们。拿我们的路由举个例子，`/todos/19` 将 `todoId` 映射为 `19`。
 
 首先我们先在 `io.vertx.blueprint.todolist` 包下创建一个`Constants`类用于存储各种全局常量（当然也可以放到其对应的类中）：
 
@@ -478,14 +479,15 @@ Vert.x中大多数异步方法都是基于Handler的。而在本教程中，这�
 
 现在是时候来实现我们的待办事项业务逻辑了！这里我们使用 Redis 作为数据持久化存储。有关Redis的详细介绍请参照[Redis 官方网站](http://redis.io/)。Vert.x给我们提供了一个组件—— Vert.x-redis，允许我们以异步的形式操作Redis数据。
 
-[NOTE 如何安装Redis？ | 请参照Redis官方网站上详细的[安装指南](http://redis.io/download#installation)。]
+> 如何安装Redis？
+> 请参照Redis官方网站上详细的[安装指南](http://redis.io/download#installation)。
 
 ### Vert.x Redis
 
 Vert.x Redis允许我们以异步的形式操作Redis数据。我们首先需要在`build.gradle`中添加以下依赖：
 
 ```gradle
-compile 'io.vertx:vertx-redis-client:3.3.0'
+compile 'io.vertx:vertx-redis-client:3.3.3'
 ```
 
 我们通过`RedisClient`对象来操作Redis中的数据，因此我们定义了一个类成员`redis`。在使用`RedisClient`之前，我们首先需要与Redis建立连接，并且需要配置（以`RedisOptions`的形式），后边我们再讲需要配置哪些东西。
@@ -503,7 +505,7 @@ private void initData() {
   redis.hset(Constants.REDIS_TODO_KEY, "24", Json.encodePrettily( // test connection
     new Todo(24, "Something to do...", false, 1, "todo/ex")), res -> {
     if (res.failed()) {
-      System.err.println("[Error] Redis service is not running!");
+      LOGGER.error("Redis service is not running!");
       res.cause().printStackTrace();
     }
   });
@@ -961,13 +963,14 @@ public class TodoVerticle extends AbstractVerticle {
 }
 ```
 
-很熟悉吧？这个Verticle的结构与我们之前的Verticle相类似，这里就不多说了。下面我们来利用我们之前编写的服务接口实现每一个控制器方法。
+很熟悉吧？这个`Verticle`的结构与我们之前的Verticle相类似，这里就不多说了。下面我们来利用我们之前编写的服务接口实现每一个控制器方法。
 
 首先先实现 `initData` 方法，此方法用于初始化存储结构：
 
 ```java
 private void initData() {
   final String serviceType = config().getString("service.type", "redis");
+  LOGGER.info("Service Type: " + serviceType);
   switch (serviceType) {
     case "jdbc":
       service = new JdbcTodoService(vertx, config());
@@ -982,7 +985,7 @@ private void initData() {
 
   service.initData().setHandler(res -> {
       if (res.failed()) {
-        System.err.println("[Error] Persistence service is not running!");
+        LOGGER.error("Persistence service is not running!");
         res.cause().printStackTrace();
       }
     });
@@ -1141,7 +1144,8 @@ public Future<Todo> update(String todoId, Todo newTodo) {
 
 首先我们调用了`getCertain`方法，此方法返回一个`Future<Optional<Todo>>`对象。同时我们使用`compose`函数将此方法返回的`Future`与另一个`Future`进行组合（1），其中`compose`函数接受一个`T => Future<U>`类型的lambda。然后我们接着检查旧的待办事项是否存在，如果存在的话，我们将新的待办事项与旧的待办事项相融合，然后更新待办事项。注意到`insert`方法返回`Future<Boolean>`类型的`Future`，因此我们还需要对此Future的结果做变换，这个变换的过程是通过`map`函数实现的（2）。`map`函数接受一个`T => U`类型的lambda。如果旧的待办事项不存在，我们返回一个包含null的`Future`（3）。最后我们返回组合后的`Future`对象。
 
-[NOTE `Future` 的本质 | 在函数式编程中，`Future` 实际上是一种 `Monad`。有关`Monad`的理论较为复杂，这里就不进行阐述了。你可以简单地把它看作是一个可以进行变换(`map`)和组合(`compose`)的包装对象。我们把这种特性叫做 **monadic**。 ]
+> `Future` 的本质
+> 在函数式编程中，`Future` 实际上是一种 `Monad`。有关`Monad`的理论较为复杂，这里就不进行阐述了。你可以简单地把它看作是一个可以进行变换(`map`)和组合(`compose`)的包装对象。我们把这种特性叫做 **monadic**。
 
 
 下面来实现MySQL版本的待办事项服务。
@@ -1173,7 +1177,7 @@ connection.query(SQL, result -> {
 首先我们需要向`build.gradle`文件中添加依赖：
 
 ```groovy
-compile 'io.vertx:vertx-jdbc-client:3.3.0'
+compile 'io.vertx:vertx-jdbc-client:3.3.3'
 compile 'mysql:mysql-connector-java:6.0.2'
 ```
 
@@ -1421,7 +1425,7 @@ plugins {
 version '1.0'
 
 ext {
-  vertxVersion = "3.3.0"
+  vertxVersion = "3.3.3"
 }
 
 jar {
@@ -1438,9 +1442,10 @@ repositories {
   jcenter()
 }
 
+// compileOnly requires Gradle 2.12+
 task annotationProcessing(type: JavaCompile, group: 'build') {
   source = sourceSets.main.java
-  classpath = configurations.compile
+  classpath = configurations.compile + configurations.compileOnly
   destinationDir = project.file('src/main/generated')
   options.compilerArgs = [
     "-proc:only",
@@ -1469,7 +1474,7 @@ dependencies {
   compile("io.vertx:vertx-web:${vertxVersion}")
   compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
   compile("io.vertx:vertx-redis-client:${vertxVersion}")
-  compile("io.vertx:vertx-codegen:${vertxVersion}")
+  compileOnly("io.vertx:vertx-codegen:${vertxVersion}")
   compile 'mysql:mysql-connector-java:6.0.2'
 
   testCompile("io.vertx:vertx-unit:${vertxVersion}")
@@ -1478,7 +1483,7 @@ dependencies {
 
 
 task wrapper(type: Wrapper) {
-  gradleVersion = '2.12'
+  gradleVersion = '3.0'
 }
 ```
 
@@ -1510,7 +1515,11 @@ java -jar build/libs/vertx-blueprint-todo-backend-fat.jar -conf config/config_jd
 
 哈哈，恭喜你完成了整个待办事项服务，是不是很开心？～在整个教程中，你应该学到了很多关于 `Vert.x Web`、 `Vert.x Redis` 和 `Vert.x JDBC` 的开发知识。当然，最重要的是，你会对Vert.x的 **异步开发模式** 有了更深的理解和领悟。
 
+另外，Vert.x 蓝图系列已经发布至Vert.x官网：[Vert.x Blueprint Tutorials](http://vertx.io/blog/vert-x-blueprint-tutorials/)。其中[第二个Blueprint](http://sczyh30.github.io/vertx-blueprint-job-queue/cn/kue-core/index.html)是关于消息应用的，[第三个Blueprint](http://sczyh30.github.io/vertx-blueprint-microservice/cn/index.html)是关于微服务的，有兴趣的朋友可以参考后面几篇蓝图教程。
+
 更多关于Vert.x的文章，请参考[Blog on Vert.x Website](http://vertx.io/blog/archives/)。官网的资料是最全面的 :-)
+
+
 
 # 来自其它框架？
 

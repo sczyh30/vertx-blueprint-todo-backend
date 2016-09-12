@@ -86,10 +86,10 @@ repositories {
 
 dependencies {
 
-  compile "io.vertx:vertx-core:3.3.0"
-  compile 'io.vertx:vertx-web:3.3.0'
+  compile "io.vertx:vertx-core:3.3.3"
+  compile 'io.vertx:vertx-web:3.3.3'
 
-  testCompile 'io.vertx:vertx-unit:3.3.0'
+  testCompile 'io.vertx:vertx-unit:3.3.3'
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 ```
@@ -263,7 +263,7 @@ Our `Todo` entity consists of id, title, order, url and a flag indicates if it i
 Here we make use of *Vert.x Codegen* to automatically generate JSON converter. To use Vert.x Codegen, we need add a dependency:
 
 ```gradle
-compile 'io.vertx:vertx-codegen:3.3.0'
+compileOnly 'io.vertx:vertx-codegen:3.3.3'
 ```
 
 And we need a `package-info.java` file in the package in order to instruct Vert.x Codegen to generate code:
@@ -283,7 +283,7 @@ In fact Vert.x Codegen resembles a annotation processing tool(apt), so we should
 ```gradle
 task annotationProcessing(type: JavaCompile, group: 'build') {
   source = sourceSets.main.java
-  classpath = configurations.compile
+  classpath = configurations.compile + configurations.compileOnly
   destinationDir = project.file('src/main/generated')
   options.compilerArgs = [
     "-proc:only",
@@ -416,7 +416,8 @@ Now let's declare our todo service routes. As we mentioned above, we designed ou
 - Delete a certain todo entity: `DELETE /todos/:todoId`
 - Delete all todo entities: `DELETE /todos`
 
-[NOTE Path Parameter | In the URL, We could define path parameters using placeholder `:` followed by the parameter name. When handling a matching request, Vert.x will automatically fetch the corresponding parameter. For example, `/todos/19` maps `todoId` to `19`.]
+> Path Parameter
+> In the URL, We could define path parameters using placeholder `:` followed by the parameter name. When handling a matching request, Vert.x will automatically fetch the corresponding parameter. For example, `/todos/19` maps `todoId` to `19`.
 
 First we create a `Constants` class in the root package(`io.vertx.blueprint.todolist`) and store the path of routes:
 
@@ -488,7 +489,7 @@ Now It's time to implement our todo logic! Here we will use *Redis* as the backe
 Vert.x-redis allows data to be saved, retrieved, searched for, and deleted in a Redis **asynchronously**. To use the Vert.x Redis client, we should add the following dependency to the *dependencies* section of `build.gradle`:
 
 ```gradle
-compile 'io.vertx:vertx-redis-client:3.3.0'
+compile 'io.vertx:vertx-redis-client:3.3.3'
 ```
 
 We can access to Redis by `RedisClient` object. So we define a `RedisClient` object as a class object. Before we use `RedisClient`, we should connect to Redis and there is a config required. This config is provided in the form of `RedisOptions`. Let's implement `initData` method to init the `RedisClient` and test the connection:
@@ -504,7 +505,7 @@ private void initData() {
   redis.hset(Constants.REDIS_TODO_KEY, "24", Json.encodePrettily( // test connection
     new Todo(24, "Something to do...", false, 1, "todo/ex")), res -> {
     if (res.failed()) {
-      System.err.println("[Error] Redis service is not running!");
+      LOGGER.error("Redis service is not running!");
       res.cause().printStackTrace();
     }
   });
@@ -972,7 +973,7 @@ First is `initData` method, which is used to init service and persistence. Here 
 ```java
 private void initData() {
   final String serviceType = config().getString("service.type", "redis");
-  System.out.println("[INFO]Service Type: " + serviceType);
+  LOGGER.info("Service Type: " + serviceType);
   switch (serviceType) {
     case "jdbc":
       service = new JdbcTodoService(vertx, config());
@@ -987,7 +988,7 @@ private void initData() {
 
   service.initData().setHandler(res -> {
       if (res.failed()) {
-        System.err.println("[Error] Persistence service is not running!");
+        LOGGER.error("Persistence service is not running!");
         res.cause().printStackTrace();
       }
     });
@@ -1146,9 +1147,10 @@ public Future<Todo> update(String todoId, Todo newTodo) {
 
 First we called `this.getCertain` method, which returns `Future<Optional<Todo>>`. Simultaneously we use `compose` operator to combine this future with another future (1). The `compose` operator takes a `Function<T, Future<U>>` as parameter, which, actually is a lambda takes input with type `T` and returns a `Future` with type `U` (`T` and `U` can be the same). Then we check whether the old todo exists. If so, we merge the old todo with the new todo, and then update the todo. Notice that `insert` method returns `Future<Boolean>`, so we should transform it into `Future<Todo>` by `map` operator (2). The `map` operator takes a `Function<T, U>` as parameter, which, actually is a lambda takes type `T` and returns type `U`. We then return the mapped `Future`. If not exists, we return a succeeded future with a null result (3). Finally return the composed `Future`.
 
-[NOTE The essence of `Future` | In functional programming, `Future` is actually a kind of `Monad`. This is a complicated concept, and you can just (actually more complicated!) refer it as objects that can be composed(`compose` or `flatMap`) and transformed(`map`). This feature is often called **monadic**. ]
+> The essence of `Future`
+> In functional programming, `Future` is actually a kind of `Monad`. This is a complicated concept, and you can just (actually more complicated!) refer it as objects that can be composed(`compose` or `flatMap`) and transformed(`map`). This feature is often called **monadic**.
 
-Our redis service is done~ Next let's implement our jdbc service.
+Our redis service is done~ Next let's implement our JDBC service.
 
 ## Implement our service with Vert.x-JDBC
 
@@ -1177,7 +1179,7 @@ The asynchronous interactions are efficient as it avoids waiting for the result.
 The first thing is to add some dependencies in our `build.gradle` file:
 
 ```groovy
-compile 'io.vertx:vertx-jdbc-client:3.3.0'
+compile 'io.vertx:vertx-jdbc-client:3.3.3'
 compile 'mysql:mysql-connector-java:6.0.2'
 ```
 
@@ -1185,7 +1187,7 @@ The first dependency provides `vertx-jdbc-client`, while the other provides the 
 
 ### Initialize the JDBC client
 
-In Vert.x-JDBC, we get a database connection from `JDBCClient` object; So let's see how to create a `JDBCClient` instance.
+In Vert.x-JDBC, we get a database connection from `JDBCClient` object. So let's see how to create a `JDBCClient` instance.
 
 Create `JdbcTodoService` class in `io.vertx.blueprint.todolist.service` package and write:
 
@@ -1246,7 +1248,7 @@ CREATE TABLE `todo` (
 )
 ```
 
-Let's store the sql sentence in our service(we do not discuss how to design db and write sql here):
+Let's store the SQL statements in our service (we do not discuss how to design db and write SQL here):
 
 ```java
 private static final String SQL_CREATE = "CREATE TABLE IF NOT EXISTS `todo` (\n" +
@@ -1271,11 +1273,11 @@ private static final String SQL_DELETE = "DELETE FROM `todo` WHERE `id` = ?";
 private static final String SQL_DELETE_ALL = "DELETE FROM `todo`";
 ```
 
-Now that all SQLs are prepared ok, let's implement our JDBC todo service~
+Now that all SQL statements are prepared ok, let's implement our JDBC todo service~
 
 ### Implement JDBC service
 
-In order to interact with database, we need to acquire connection from `JDBCClient` like this:
+In order to interact with database, we first need to acquire connection from `JDBCClient` like this:
 
 ```java
 client.getConnection(conn -> {
@@ -1333,7 +1335,8 @@ public Future<Boolean> initData() {
 
 This method create the `todo` table if it doesn't exist. Don't forget to close the connection.
 
-[NOTE Closing connection | Don't forget to close the SQL connection when you are done. The connection will be given back to the connection pool and be reused.]
+> Closing connection
+> Don't forget to close the SQL connection when you are done. The connection will be given back to the connection pool and be reused.
 
 Now let's implement `insert` method:
 
@@ -1425,7 +1428,7 @@ plugins {
 version '1.0'
 
 ext {
-  vertxVersion = "3.3.0"
+  vertxVersion = "3.3.3"
 }
 
 jar {
@@ -1442,9 +1445,10 @@ repositories {
   jcenter()
 }
 
+// compileOnly requires Gradle 2.12+
 task annotationProcessing(type: JavaCompile, group: 'build') {
   source = sourceSets.main.java
-  classpath = configurations.compile
+  classpath = configurations.compile + configurations.compileOnly
   destinationDir = project.file('src/main/generated')
   options.compilerArgs = [
     "-proc:only",
@@ -1473,7 +1477,7 @@ dependencies {
   compile("io.vertx:vertx-web:${vertxVersion}")
   compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
   compile("io.vertx:vertx-redis-client:${vertxVersion}")
-  compile("io.vertx:vertx-codegen:${vertxVersion}")
+  compileOnly("io.vertx:vertx-codegen:${vertxVersion}")
   compile 'mysql:mysql-connector-java:6.0.2'
 
   testCompile("io.vertx:vertx-unit:${vertxVersion}")
@@ -1482,14 +1486,14 @@ dependencies {
 
 
 task wrapper(type: Wrapper) {
-  gradleVersion = '2.12'
+  gradleVersion = '3.0'
 }
 ```
 
 Can't wait yeah?~ Let's now build our application:
 
 ```bash
-gradle build
+gradle build -x test
 ```
 
 Then we can run our application with Redis:
@@ -1514,7 +1518,7 @@ And we also provide a [Docker Compose config file](https://github.com/sczyh30/ve
 
 Congratulations, you have finished the todo backend service~ In this long tutorial, you have learned the usage of `Vert.x Web`, `Vert.x Redis` and `Vert.x JDBC`, and most importantly, the **asynchronous development model** of Vert.x.
 
-To learn more about Vert.x, you can visit [Blog on Vert.x Website](http://vertx.io/blog/archives/).
+The [Vert.x Blueprint Tutorials](http://vertx.io/blog/vert-x-blueprint-tutorials/) is now available on Vert.x webstie. And to learn more about Vert.x, you can visit [Blog on Vert.x Website](http://vertx.io/blog/archives/).
 
 # From other frameworks?
 

@@ -10,6 +10,8 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
+import io.vertx.core.logging.Logger;
+import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -28,6 +30,8 @@ import java.util.stream.Collectors;
  * @author Eric Zhao
  */
 public class SingleApplicationVerticle extends AbstractVerticle {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(SingleApplicationVerticle.class);
 
   private static final String HTTP_HOST = "0.0.0.0";
   private static final String REDIS_HOST = "127.0.0.1";
@@ -57,7 +61,7 @@ public class SingleApplicationVerticle extends AbstractVerticle {
     redis.hset(Constants.REDIS_TODO_KEY, "24", Json.encodePrettily(
       new Todo(24, "Something to do...", false, 1, "todo/ex")), res -> {
       if (res.failed()) {
-        System.err.println("[Error] Redis service is not running!");
+        LOGGER.error("Redis service is not running!");
         res.cause().printStackTrace();
       }
     });

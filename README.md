@@ -9,12 +9,12 @@ This repository is an introduction to basic Vert.x web RESTful service developme
 
 ## Contents
 
-- What is Vert.x and its basic design
+- What is Vert.x and its principles
 - What is and how to use `Verticle`
 - How to develop a REST API using Vert.x Web
 - How to make use of **asynchronous development model**
-- Future-based reactive asynchronous pattern
-- How to use persistence such as *Redis* and *MySQL* with the help of Vert.x data access components
+- `Future`-based asynchronous pattern
+- How to use persistence such as *Redis* and *MySQL* with the help of Vert.x async data components
 
 ## Detailed Document
 
