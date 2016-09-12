@@ -5,7 +5,7 @@ plugins {
 version '1.0'
 
 ext {
-  vertxVersion = "3.3.2"
+  vertxVersion = "3.3.3"
 }
 
 jar {
@@ -22,9 +22,10 @@ repositories {
   jcenter()
 }
 
+// compileOnly requires Gradle 2.12+
 task annotationProcessing(type: JavaCompile, group: 'build') {
   source = sourceSets.main.java
-  classpath = configurations.compile
+  classpath = configurations.compile + configurations.compileOnly
   destinationDir = project.file('src/main/generated')
   options.compilerArgs = [
     "-proc:only",
@@ -53,7 +54,7 @@ dependencies {
   compile("io.vertx:vertx-web:${vertxVersion}")
   compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
   compile("io.vertx:vertx-redis-client:${vertxVersion}")
-  compile("io.vertx:vertx-codegen:${vertxVersion}")
+  compileOnly("io.vertx:vertx-codegen:${vertxVersion}")
   compile 'mysql:mysql-connector-java:6.0.2'
 
   testCompile("io.vertx:vertx-unit:${vertxVersion}")
@@ -62,5 +63,5 @@ dependencies {
 
 
 task wrapper(type: Wrapper) {
-  gradleVersion = '2.12'
+  gradleVersion = '3.0'
 }
