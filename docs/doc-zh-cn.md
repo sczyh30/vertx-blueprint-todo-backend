@@ -10,7 +10,7 @@
 - **异步编程风格** 的应用
 - 如何通过 Vert.x 的各种组件来进行数据的存储操作（如 *Redis* 和 *MySQL*）
 
-本教程是 **Vert.x 蓝图系列** 的第一篇教程，对应的Vert.x版本为**3.3.3**。本教程中的完整代码已托管至[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master)。
+本教程是 **Vert.x 蓝图系列** 的第一篇教程，对应的Vert.x版本为**3.4.1**。本教程中的完整代码已托管至[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master)。
 
 # 踏入Vert.x之门
 
@@ -79,10 +79,10 @@ repositories {
 
 dependencies {
 
-  compile "io.vertx:vertx-core:3.3.3"
-  compile 'io.vertx:vertx-web:3.3.3'
+  compile "io.vertx:vertx-core:3.4.1"
+  compile 'io.vertx:vertx-web:3.4.1'
 
-  testCompile 'io.vertx:vertx-unit:3.3.3'
+  testCompile 'io.vertx:vertx-unit:3.4.1'
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 ```
@@ -260,7 +260,7 @@ public class Todo {
 我们利用Vert.x Codegen来自动生成JSON转换类。我们需要在`build.gradle`中添加依赖：
 
 ```gradle
-compileOnly 'io.vertx:vertx-codegen:3.3.3'
+compileOnly 'io.vertx:vertx-codegen:3.4.1'
 ```
 
 由于Vert.x Codegen仅在编译期生成代码，因此我们这里使用了`compileOnly`(相当于Maven中的`provided`。需要Gradle 2.12及以上版本)。同时，我们需要在`io.vertx.blueprint.todolist.entity`包中添加`package-info.java`文件来指引Vert.x Codegen生成代码：
@@ -285,7 +285,7 @@ task annotationProcessing(type: JavaCompile, group: 'build') {
   options.compilerArgs = [
     "-proc:only",
     "-processor", "io.vertx.codegen.CodeGenProcessor",
-    "-AoutputDirectory=${destinationDir.absolutePath}"
+    "-Acodegen.output=${destinationDir.absolutePath}"
   ]
 }
 
@@ -490,7 +490,7 @@ Vert.x中大多数异步方法都是基于Handler的。而在本教程中，这�
 Vert.x Redis允许我们以异步的形式操作Redis数据。我们首先需要在`build.gradle`中添加以下依赖：
 
 ```gradle
-compile 'io.vertx:vertx-redis-client:3.3.3'
+compile 'io.vertx:vertx-redis-client:3.4.1'
 ```
 
 我们通过`RedisClient`对象来操作Redis中的数据，因此我们定义了一个类成员`redis`。在使用`RedisClient`之前，我们首先需要与Redis建立连接，并且需要配置（以`RedisOptions`的形式），后边我们再讲需要配置哪些东西。
@@ -1181,8 +1181,8 @@ connection.query(SQL, result -> {
 首先我们需要向`build.gradle`文件中添加依赖：
 
 ```groovy
-compile 'io.vertx:vertx-jdbc-client:3.3.3'
-compile 'mysql:mysql-connector-java:6.0.2'
+compile 'io.vertx:vertx-jdbc-client:3.4.1'
+compile 'mysql:mysql-connector-java:6.0.5'
 ```
 
 其中第二个依赖是MySQL的驱动，如果你想使用其他的数据库，你需要自行替换掉这个依赖。
@@ -1426,10 +1426,10 @@ plugins {
   id 'java'
 }
 
-version '1.0'
+version '3.4.1'
 
 ext {
-  vertxVersion = "3.3.3"
+  vertxVersion = "3.4.1"
 }
 
 jar {
@@ -1454,7 +1454,7 @@ task annotationProcessing(type: JavaCompile, group: 'build') {
   options.compilerArgs = [
     "-proc:only",
     "-processor", "io.vertx.codegen.CodeGenProcessor",
-    "-AoutputDirectory=${destinationDir.absolutePath}"
+    "-Acodegen.output=${destinationDir.absolutePath}"
   ]
 }
 
@@ -1479,7 +1479,7 @@ dependencies {
   compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
   compile("io.vertx:vertx-redis-client:${vertxVersion}")
   compileOnly("io.vertx:vertx-codegen:${vertxVersion}")
-  compile 'mysql:mysql-connector-java:6.0.2'
+  compile 'mysql:mysql-connector-java:6.0.5'
 
   testCompile("io.vertx:vertx-unit:${vertxVersion}")
   testCompile group: 'junit', name: 'junit', version: '4.12'
@@ -1487,7 +1487,7 @@ dependencies {
 
 
 task wrapper(type: Wrapper) {
-  gradleVersion = '3.0'
+  gradleVersion = '3.4'
 }
 ```
 

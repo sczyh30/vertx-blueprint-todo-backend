@@ -2,10 +2,10 @@ plugins {
   id 'java'
 }
 
-version '1.0'
+version '3.4.1'
 
 ext {
-  vertxVersion = "3.3.3"
+  vertxVersion = "3.4.1"
 }
 
 jar {
@@ -30,7 +30,7 @@ task annotationProcessing(type: JavaCompile, group: 'build') {
   options.compilerArgs = [
     "-proc:only",
     "-processor", "io.vertx.codegen.CodeGenProcessor",
-    "-AoutputDirectory=${destinationDir.absolutePath}"
+    "-Acodegen.output=${destinationDir.absolutePath}"
   ]
 }
 
@@ -55,7 +55,7 @@ dependencies {
   compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
   compile("io.vertx:vertx-redis-client:${vertxVersion}")
   compileOnly("io.vertx:vertx-codegen:${vertxVersion}")
-  compile 'mysql:mysql-connector-java:6.0.2'
+  compile 'mysql:mysql-connector-java:6.0.5'
 
   testCompile("io.vertx:vertx-unit:${vertxVersion}")
   testCompile group: 'junit', name: 'junit', version: '4.12'
@@ -63,5 +63,5 @@ dependencies {
 
 
 task wrapper(type: Wrapper) {
-  gradleVersion = '3.0'
+  gradleVersion = '3.4'
 }

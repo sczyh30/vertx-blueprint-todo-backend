@@ -10,7 +10,7 @@ What you are going to learn:
 - How to make use of **asynchronous development model**
 - How to use persistence such as *Redis* and *MySQL* with the help of Vert.x data access components
 
-This is the first part of **Vert.x Blueprint Project**. The code developed in this tutorial is available on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master).
+This is the first part of **Vert.x Blueprint Project**. The project works with Vert.x **3.4.1**. The code developed in this tutorial is available on [GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master).
 
 # Introduction to Vert.x
 
@@ -86,10 +86,10 @@ repositories {
 
 dependencies {
 
-  compile "io.vertx:vertx-core:3.3.3"
-  compile 'io.vertx:vertx-web:3.3.3'
+  compile "io.vertx:vertx-core:3.4.1"
+  compile 'io.vertx:vertx-web:3.4.1'
 
-  testCompile 'io.vertx:vertx-unit:3.3.3'
+  testCompile 'io.vertx:vertx-unit:3.4.1'
   testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 ```
@@ -263,7 +263,7 @@ Our `Todo` entity consists of id, title, order, url and a flag indicates if it i
 Here we make use of *Vert.x Codegen* to automatically generate JSON converter. To use Vert.x Codegen, we need add a dependency:
 
 ```gradle
-compileOnly 'io.vertx:vertx-codegen:3.3.3'
+compileOnly 'io.vertx:vertx-codegen:3.4.1'
 ```
 
 And we need a `package-info.java` file in the package in order to instruct Vert.x Codegen to generate code:
@@ -492,7 +492,7 @@ Now It's time to implement our todo logic! Here we will use *Redis* as the backe
 Vert.x-redis allows data to be saved, retrieved, searched for, and deleted in a Redis **asynchronously**. To use the Vert.x Redis client, we should add the following dependency to the *dependencies* section of `build.gradle`:
 
 ```gradle
-compile 'io.vertx:vertx-redis-client:3.3.3'
+compile 'io.vertx:vertx-redis-client:3.4.1'
 ```
 
 We can access to Redis by `RedisClient` object. So we define a `RedisClient` object as a class object. Before we use `RedisClient`, we should connect to Redis and there is a config required. This config is provided in the form of `RedisOptions`. Let's implement `initData` method to init the `RedisClient` and test the connection:
@@ -1185,8 +1185,8 @@ The asynchronous interactions are efficient as it avoids waiting for the result.
 The first thing is to add some dependencies in our `build.gradle` file:
 
 ```groovy
-compile 'io.vertx:vertx-jdbc-client:3.3.3'
-compile 'mysql:mysql-connector-java:6.0.2'
+compile 'io.vertx:vertx-jdbc-client:3.4.1'
+compile 'mysql:mysql-connector-java:6.0.5'
 ```
 
 The first dependency provides `vertx-jdbc-client`, while the other provides the MySQL JDBC driver. If you want to use other databases, just change the second dependency to your database driver.
@@ -1431,10 +1431,10 @@ plugins {
   id 'java'
 }
 
-version '1.0'
+version '3.4.1'
 
 ext {
-  vertxVersion = "3.3.3"
+  vertxVersion = "3.4.1"
 }
 
 jar {
@@ -1459,7 +1459,7 @@ task annotationProcessing(type: JavaCompile, group: 'build') {
   options.compilerArgs = [
     "-proc:only",
     "-processor", "io.vertx.codegen.CodeGenProcessor",
-    "-AoutputDirectory=${destinationDir.absolutePath}"
+    "-Acodegen.output=${destinationDir.absolutePath}"
   ]
 }
 
@@ -1484,7 +1484,7 @@ dependencies {
   compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
   compile("io.vertx:vertx-redis-client:${vertxVersion}")
   compileOnly("io.vertx:vertx-codegen:${vertxVersion}")
-  compile 'mysql:mysql-connector-java:6.0.2'
+  compile 'mysql:mysql-connector-java:6.0.5'
 
   testCompile("io.vertx:vertx-unit:${vertxVersion}")
   testCompile group: 'junit', name: 'junit', version: '4.12'
@@ -1492,7 +1492,7 @@ dependencies {
 
 
 task wrapper(type: Wrapper) {
-  gradleVersion = '3.0'
+  gradleVersion = '3.4'
 }
 ```
 
