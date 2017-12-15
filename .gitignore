@@ -4,4 +4,6 @@
 # build files
 .gradle
 build
+out
 .vertx
+.DS_Store

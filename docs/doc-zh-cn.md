@@ -1,6 +1,6 @@
 # 前言
 
-在本教程中，我们会使用Vert.x来一步一步地开发一个REST风格的Web服务 - Todo Backend，你可以把它看作是一个简单的待办事项服务，我们可以自由添加或者取消各种待办事项。
+在本教程中，我们会使用 Vert.x 来一步一步地开发一个REST风格的Web服务 - Todo Backend，你可以把它看作是一个简单的待办事项服务，我们可以自由添加或者取消各种待办事项。
 
 通过本教程，你将会学习到以下的内容：
 
@@ -11,6 +11,8 @@
 - 如何通过 Vert.x 的各种组件来进行数据的存储操作（如 *Redis* 和 *MySQL*）
 
 本教程是 **Vert.x 蓝图系列** 的第一篇教程，对应的Vert.x版本为**3.4.1**。本教程中的完整代码已托管至[GitHub](https://github.com/sczyh30/vertx-blueprint-todo-backend/tree/master)。
+
+> 注：代码已更新至 3.5.x 版本，并重构为响应式编程模式，利用 Vert.x RxJava 2 API 编写。文档待更新。。。
 
 # 踏入Vert.x之门
 

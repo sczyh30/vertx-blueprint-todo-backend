@@ -2,10 +2,13 @@
 
 [![Travis Build Status](https://travis-ci.org/sczyh30/vertx-blueprint-todo-backend.svg?branch=master)](https://travis-ci.org/sczyh30/vertx-blueprint-todo-backend)
 
-Vert.x blueprint application - A todo-backend implementation using Vert.x
+Vert.x blueprint application - A reactive todo-backend implementation using Vert.x
 and various persistence (e.g. Redis or MySQL).
 
-This repository is an introduction to basic Vert.x web RESTful service development. Detailed tutorials (both in Chinese and English) are provided below.
+This repository is an introduction to basic Vert.x web RESTful service development and reactive programming. 
+Detailed tutorials (both in Chinese and English) are provided below.
+
+> Note: We've redesigned the code with reactive and functional style with **RxJava 2** and **Vert.x 3.5.x**.
 
 ## Contents
 
@@ -13,7 +16,7 @@ This repository is an introduction to basic Vert.x web RESTful service developme
 - What is and how to use `Verticle`
 - How to develop a REST API using Vert.x Web
 - How to make use of **asynchronous development model**
-- `Future`-based asynchronous pattern
+- Reactive programming with RxJava 2
 - How to use persistence such as *Redis* and *MySQL* with the help of Vert.x async data components
 
 ## Detailed Document

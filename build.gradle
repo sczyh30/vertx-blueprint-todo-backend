@@ -2,10 +2,10 @@ plugins {
   id 'java'
 }
 
-version '3.4.1'
+version '3.5.0'
 
 ext {
-  vertxVersion = "3.4.1"
+  vertxVersion = "3.5.0"
 }
 
 jar {
@@ -14,7 +14,7 @@ jar {
   from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
   manifest {
     attributes 'Main-Class': 'io.vertx.core.Launcher'
-    attributes 'Main-Verticle': 'io.vertx.blueprint.todolist.verticles.TodoVerticle'
+    attributes 'Main-Verticle': 'io.vertx.blueprint.todolist.verticle.RxTodoVerticle'
   }
 }
 
@@ -51,6 +51,7 @@ compileJava {
 
 dependencies {
   compile("io.vertx:vertx-core:${vertxVersion}")
+  compile("io.vertx:vertx-rx-java2:${vertxVersion}")
   compile("io.vertx:vertx-web:${vertxVersion}")
   compile("io.vertx:vertx-jdbc-client:${vertxVersion}")
   compile("io.vertx:vertx-redis-client:${vertxVersion}")
@@ -63,5 +64,5 @@ dependencies {
 
 
 task wrapper(type: Wrapper) {
-  gradleVersion = '3.4'
+  gradleVersion = '4.4'
 }

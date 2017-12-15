@@ -1,8 +1,9 @@
 package io.vertx.blueprint.todolist;
 
 /**
- * Vert.x Blueprint Application - Todo Backend
- * Constants class
+ * Constant class.
+ *
+ * @author <a href="http://www.sczyh30.com">Eric Zhao</a>
  */
 public final class Constants {
 

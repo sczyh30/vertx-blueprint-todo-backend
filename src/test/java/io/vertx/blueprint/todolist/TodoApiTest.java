@@ -2,8 +2,7 @@ package io.vertx.blueprint.todolist;
 
 import io.vertx.blueprint.todolist.entity.Todo;
 
-import io.vertx.blueprint.todolist.service.RedisTodoService;
-import io.vertx.blueprint.todolist.verticles.TodoVerticle;
+import io.vertx.blueprint.todolist.verticle.RxTodoVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
@@ -14,7 +13,6 @@ import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 
-import io.vertx.redis.RedisOptions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,12 +36,11 @@ public class TodoApiTest {
   public void before(TestContext context) {
     vertx = Vertx.vertx();
     final DeploymentOptions options = new DeploymentOptions()
-      .setConfig(new JsonObject().put("http.port", PORT)
-      );
+      .setConfig(new JsonObject().put("http.port", PORT));
     // default config
-    TodoVerticle verticle = new TodoVerticle();
+    RxTodoVerticle todoVerticle = new RxTodoVerticle();
 
-    vertx.deployVerticle(verticle, options,
+    vertx.deployVerticle(todoVerticle, options,
       context.asyncAssertSuccess());
   }
 
