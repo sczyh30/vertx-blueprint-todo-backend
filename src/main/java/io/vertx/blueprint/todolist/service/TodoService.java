@@ -1,31 +1,31 @@
 package io.vertx.blueprint.todolist.service;
 
+import io.reactivex.Completable;
+import io.reactivex.Maybe;
+import io.reactivex.Single;
 import io.vertx.blueprint.todolist.entity.Todo;
-import io.vertx.core.Future;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
- * Vert.x Blueprint Application - Todo Backend
- * Todo Service Interface
+ * Reactive service interface of todo backend.
  *
  * @author Eric Zhao
  */
 public interface TodoService {
 
-  Future<Boolean> initData();
+  Completable initData();
 
-  Future<Boolean> insert(Todo todo);
+  Single<Todo> insert(Todo todo);
 
-  Future<List<Todo>> getAll();
+  Single<List<Todo>> getAll();
 
-  Future<Optional<Todo>> getCertain(String todoID);
+  Maybe<Todo> getCertain(String todoID);
 
-  Future<Todo> update(String todoId, Todo newTodo);
+  Maybe<Todo> update(String todoId, Todo newTodo);
 
-  Future<Boolean> delete(String todoId);
+  Completable delete(String todoId);
 
-  Future<Boolean> deleteAll();
+  Completable deleteAll();
 
 }

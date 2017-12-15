@@ -1,5 +1,7 @@
 # Preface
 
+> Note: The code has been updated to Vert.x 3.5 and rewrote with RxJava 2. The document is to be updated soon.
+
 In this tutorial, we are going to use Vert.x to develop a RESTful web service - Todo Backend. This service provide a simple RESTful API in the form of a todo list, where we could add or complete todo stuff.
 
 What you are going to learn:
