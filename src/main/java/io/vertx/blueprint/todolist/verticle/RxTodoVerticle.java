@@ -51,7 +51,7 @@ public class RxTodoVerticle extends RestfulApiVerticle {
     String host = config().getString("http.address", HOST);
     int port = config().getInteger("http.port", PORT);
 
-    initService().compose(v -> createHttpServer(router, host, port))
+    initService().andThen(createHttpServer(router, host, port))
       .subscribe(startFuture::complete, startFuture::fail);
   }
 
