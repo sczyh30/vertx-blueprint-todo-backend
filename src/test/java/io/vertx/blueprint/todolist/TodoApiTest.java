@@ -55,7 +55,7 @@ public class TodoApiTest {
     Async async = context.async();
     Todo todo = new Todo(164, "Test case...", false, 22, "/164");
     client.post(PORT, "localhost", "/todos", response -> {
-      context.assertEquals(201, response.statusCode());
+      context.assertEquals(201, response.result().statusCode());
       client.close();
       async.complete();
     }).putHeader("content-type", "application/json").end(Json.encodePrettily(todo));
@@ -65,7 +65,7 @@ public class TodoApiTest {
   public void testGet(TestContext context) throws Exception {
     HttpClient client = vertx.createHttpClient();
     Async async = context.async();
-    client.getNow(PORT, "localhost", "/todos/164", response -> response.bodyHandler(body -> {
+    client.getNow(PORT, "localhost", "/todos/164", response -> response.result().bodyHandler(body -> {
       context.assertEquals(new Todo(body.toString()), todoEx);
       client.close();
       async.complete();
@@ -77,10 +77,10 @@ public class TodoApiTest {
     HttpClient client = vertx.createHttpClient();
     Async async = context.async();
     Todo todo = new Todo(164, "Test case...Update!", false, 26, "/164h");
-    client.request(HttpMethod.PATCH, PORT, "localhost", "/todos/164", response -> response.bodyHandler(body -> {
+    client.request(HttpMethod.PATCH, PORT, "localhost", "/todos/164", response -> response.result().bodyHandler(body -> {
       context.assertEquals(new Todo(body.toString()), todoUp);
       client.request(HttpMethod.DELETE, PORT, "localhost", "/todos/164", rsp -> {
-        context.assertEquals(204, rsp.statusCode());
+        context.assertEquals(204, rsp.result().statusCode());
         async.complete();
       }).end();
     })).putHeader("content-type", "application/json").end(Json.encodePrettily(todo));
