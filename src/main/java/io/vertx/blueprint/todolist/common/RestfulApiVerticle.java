@@ -35,9 +35,9 @@ public abstract class RestfulApiVerticle extends AbstractVerticle {
    */
   protected Completable createHttpServer(Router router, String host, int port) {
     return vertx.createHttpServer()
-      .requestHandler(router::accept)
+      .requestHandler(router)
       .rxListen(port, host)
-      .toCompletable();
+      .ignoreElement();
   }
 
   /**
@@ -77,7 +77,9 @@ public abstract class RestfulApiVerticle extends AbstractVerticle {
     if (asyncResult == null) {
       internalError(context, "invalid_status");
     } else {
-      asyncResult.subscribe(response::end, ex -> internalError(context, ex));
+      asyncResult.subscribe(
+              response::end,
+              throwable -> internalError(context, throwable));
     }
   }
 
@@ -88,20 +90,24 @@ public abstract class RestfulApiVerticle extends AbstractVerticle {
    * @param context     routing context
    * @param asyncResult asynchronous status with no result
    */
-  protected void sendResponse(RoutingContext context, Completable asyncResult, Consumer<RoutingContext> f) {
+  protected void sendResponse(RoutingContext context, Completable asyncResult, Consumer<RoutingContext> consumer) {
     if (asyncResult == null) {
       internalError(context, "invalid_status");
     } else {
-      asyncResult.subscribe(() -> f.accept(context), ex -> internalError(context, ex));
+      asyncResult.subscribe(
+              () -> consumer.accept(context),
+              throwable -> internalError(context, throwable));
     }
   }
 
   protected <T> void sendResponse(RoutingContext context, Single<T> asyncResult,
-                                  Function<T, String> converter, BiConsumer<RoutingContext, String> f) {
+                                  Function<T, String> converter, BiConsumer<RoutingContext, String> consumer) {
     if (asyncResult == null) {
       internalError(context, "invalid_status");
     } else {
-      asyncResult.subscribe(r -> f.accept(context, converter.apply(r)), ex -> internalError(context, ex));
+      asyncResult.subscribe(
+              response -> consumer.accept(context, converter.apply(response)),
+              throwable -> internalError(context, throwable));
     }
   }
 
@@ -117,8 +123,9 @@ public abstract class RestfulApiVerticle extends AbstractVerticle {
     if (asyncResult == null) {
       internalError(context, "invalid_status");
     } else {
-      asyncResult.subscribe(r -> ok(context, converter.apply(r)),
-        ex -> internalError(context, ex));
+      asyncResult.subscribe(
+              response -> ok(context, converter.apply(response)),
+              throwable -> internalError(context, throwable));
     }
   }
 
@@ -133,18 +140,19 @@ public abstract class RestfulApiVerticle extends AbstractVerticle {
     }
   }
 
-  protected <T> void sendResponseOpt(RoutingContext context, Single<Optional<T>> asyncResult, Function<T, String> converter) {
+  protected <T> void sendResponseOpt(
+          RoutingContext context, Single<Optional<T>> asyncResult, Function<T, String> converter) {
     if (asyncResult == null) {
       internalError(context, "invalid_status");
     } else {
-      asyncResult.subscribe(r -> {
-          if (r.isPresent()) {
-            ok(context, converter.apply(r.get()));
-          } else {
-            notFound(context);
-          }
-        },
-        ex -> internalError(context, ex));
+      asyncResult.subscribe(
+              response -> {
+                if (response.isPresent()) {
+                  ok(context, converter.apply(response.get()));
+                } else {
+                  notFound(context);
+                }},
+              throwable -> internalError(context, throwable));
     }
   }
 
