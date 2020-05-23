@@ -8,8 +8,8 @@ import io.vertx.blueprint.todolist.entity.Todo;
 
 import io.vertx.core.json.Json;
 import io.vertx.reactivex.core.Vertx;
-import io.vertx.reactivex.redis.RedisClient;
-import io.vertx.redis.RedisOptions;
+import io.vertx.reactivex.redis.client.Redis;
+import io.vertx.redis.client.RedisOptions;
 
 import java.util.List;
 import java.util.Objects;
@@ -25,12 +25,12 @@ public class RedisTodoService implements TodoService {
 
   private final Vertx vertx;
   private final RedisOptions config;
-  private final RedisClient redis;
+  private final Redis redis;
 
   public RedisTodoService(Vertx vertx, RedisOptions config) {
     this.vertx = vertx;
     this.config = config;
-    this.redis = RedisClient.create(vertx, config);
+    this.redis = Redis.create(vertx, config);
   }
 
   @Override

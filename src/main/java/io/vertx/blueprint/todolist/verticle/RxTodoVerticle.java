@@ -15,7 +15,7 @@ import io.vertx.core.logging.LoggerFactory;
 import io.vertx.reactivex.ext.web.Router;
 import io.vertx.reactivex.ext.web.RoutingContext;
 import io.vertx.reactivex.ext.web.handler.BodyHandler;
-import io.vertx.redis.RedisOptions;
+import io.vertx.redis.client.RedisOptions;
 
 import java.util.Objects;
 
