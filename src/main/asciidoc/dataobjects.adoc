@@ -8,14 +8,14 @@
 ++++
 '''
 
-[cols=">25%,^25%,50%"]
+[cols=">25%,25%,50%"]
 [frame="topbot"]
 |===
 ^|Name | Type ^| Description
-|[[completed]]`completed`|`Boolean`|-
-|[[id]]`id`|`Number (int)`|-
-|[[order]]`order`|`Number (Integer)`|-
-|[[title]]`title`|`String`|-
-|[[url]]`url`|`String`|-
+|[[completed]]`@completed`|`Boolean`|-
+|[[id]]`@id`|`Number (int)`|-
+|[[order]]`@order`|`Number (Integer)`|-
+|[[title]]`@title`|`String`|-
+|[[url]]`@url`|`String`|-
 |===
 

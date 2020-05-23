@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @DataObject(generateConverter = true)
 public class Todo {
 
-  private static final AtomicInteger acc = new AtomicInteger(0);
+  private static final AtomicInteger ACCUMULATOR = new AtomicInteger(0);
 
   private int id;
   private String title;
@@ -22,12 +22,12 @@ public class Todo {
   public Todo() {
   }
 
-  public Todo(Todo other) {
-    this.id = other.id;
-    this.title = other.title;
-    this.completed = other.completed;
-    this.order = other.order;
-    this.url = other.url;
+  public Todo(Todo todo) {
+    this.id = todo.id;
+    this.title = todo.title;
+    this.completed = todo.completed;
+    this.order = todo.order;
+    this.url = todo.url;
   }
 
   public Todo(JsonObject obj) {
@@ -61,15 +61,15 @@ public class Todo {
   }
 
   public void setIncId() {
-    this.id = acc.incrementAndGet();
+    this.id = ACCUMULATOR.incrementAndGet();
   }
 
   public static int getIncId() {
-    return acc.get();
+    return ACCUMULATOR.get();
   }
 
   public static void setIncIdWith(int n) {
-    acc.set(n);
+    ACCUMULATOR.set(n);
   }
 
   public String getTitle() {
